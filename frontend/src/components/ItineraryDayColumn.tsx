@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation';
 import type { ItineraryDay } from '../types/itinerary';
 import ActivityCard from './ActivityCard';
@@ -5,13 +6,22 @@ import ActivityCard from './ActivityCard';
 interface ItineraryDayColumnProps {
   day: ItineraryDay;
   focusKey: string;
+  onFocused?: () => void;
 }
 
 export default function ItineraryDayColumn({
   day,
   focusKey: propFocusKey,
+  onFocused,
 }: ItineraryDayColumnProps) {
-  const { ref, focusKey } = useFocusable({ focusKey: propFocusKey });
+  const { ref, hasFocusedChild, focusKey } = useFocusable({
+    focusKey: propFocusKey,
+    trackChildren: true,
+  });
+
+  useEffect(() => {
+    if (hasFocusedChild && onFocused) onFocused();
+  }, [hasFocusedChild, onFocused]);
 
   const dateObj = new Date(day.date + 'T00:00:00');
   const weekday = dateObj.toLocaleDateString('ko-KR', { weekday: 'short' });

@@ -37,7 +37,7 @@ export default function AttractionCard({
       }}
     >
       <div
-        className={`w-72 h-[520px] bg-white rounded-2xl overflow-hidden shadow-2xl transition-all ${
+        className={`w-80 h-[580px] bg-white rounded-2xl overflow-hidden shadow-2xl transition-all ${
           focused ? 'ring-4 ring-blue-500' : ''
         }`}
       >
@@ -61,7 +61,7 @@ export default function AttractionCard({
               <span className="text-sm text-amber-500 font-medium">★ {rating.toFixed(1)}</span>
             )}
           </div>
-          <p className="text-sm text-gray-600 line-clamp-4">{description}</p>
+          <p className="text-sm text-gray-600 line-clamp-6">{description}</p>
         </div>
       </div>
     </div>

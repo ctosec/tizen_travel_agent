@@ -54,9 +54,17 @@ export default function ItineraryPage() {
     generateItinerary(COUNTRY, CITY);
   }, [generateItinerary]);
 
-  const visibleDays = days.slice(startIndex, startIndex + PAGE_SIZE);
-  const canScrollLeft = startIndex > 0;
-  const canScrollRight = startIndex + PAGE_SIZE < days.length;
+  // Auto-scroll when a day column receives focus
+  const handleDayFocus = useCallback((dayIndex: number) => {
+    setStartIndex((prev) => {
+      if (dayIndex < prev) return dayIndex;
+      if (dayIndex >= prev + PAGE_SIZE) return dayIndex - PAGE_SIZE + 1;
+      return prev;
+    });
+  }, []);
+
+  // Clamp startIndex for safety
+  const safeStartIndex = Math.max(0, Math.min(startIndex, Math.max(0, days.length - PAGE_SIZE)));
 
   return (
     <FocusContext.Provider value={focusKey}>
@@ -79,7 +87,7 @@ export default function ItineraryPage() {
                 focusKey="date-prev"
                 onClick={() => handleDateChange(-1)}
                 className="rounded-full"
-              focusedClassName="ring-2 ring-purple-400"
+                focusedClassName="ring-2 ring-purple-400"
               >
                 <button className="text-white text-xl px-2">◀</button>
               </FocusableButton>
@@ -125,54 +133,32 @@ export default function ItineraryPage() {
           </div>
         </div>
 
-        {/* Day Columns with scroll arrows */}
-        <div className="flex-1 overflow-hidden">
+        {/* Day Columns — auto-scrolling carousel */}
+        <div className="flex-1 overflow-hidden relative">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <LoadingSpinner text="AI가 일정을 생성하고 있습니다..." />
             </div>
           ) : (
-            <div className="flex items-stretch h-full gap-2">
-              {/* Left arrow */}
-              <div className="w-[40px] flex items-center justify-center shrink-0">
-                {canScrollLeft && (
-                  <FocusableButton
-                    focusKey="scroll-left"
-                    onClick={() => setStartIndex((i) => Math.max(0, i - 1))}
-                    focusedClassName="ring-2 ring-purple-400 rounded-full"
-                  >
-                    <button className="text-white text-3xl bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center transition-all">
-                      ◀
-                    </button>
-                  </FocusableButton>
-                )}
-              </div>
-
-              {/* Day grid */}
-              <div className="flex-1 grid grid-cols-5 gap-4 h-full overflow-hidden">
-                {visibleDays.map((day) => (
+            <div
+              className="absolute inset-0 flex transition-transform duration-300 ease-out"
+              style={{
+                transform: `translateX(-${safeStartIndex * (100 / PAGE_SIZE)}%)`,
+              }}
+            >
+              {days.map((day, idx) => (
+                <div
+                  key={day.day}
+                  className="shrink-0 px-2 h-full"
+                  style={{ width: `${100 / PAGE_SIZE}%` }}
+                >
                   <ItineraryDayColumn
-                    key={day.day}
                     day={day}
                     focusKey={`day-col-${day.day}`}
+                    onFocused={() => handleDayFocus(idx)}
                   />
-                ))}
-              </div>
-
-              {/* Right arrow */}
-              <div className="w-[40px] flex items-center justify-center shrink-0">
-                {canScrollRight && (
-                  <FocusableButton
-                    focusKey="scroll-right"
-                    onClick={() => setStartIndex((i) => Math.min(days.length - PAGE_SIZE, i + 1))}
-                    focusedClassName="ring-2 ring-purple-400 rounded-full"
-                  >
-                    <button className="text-white text-3xl bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center transition-all">
-                      ▶
-                    </button>
-                  </FocusableButton>
-                )}
-              </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -183,7 +169,7 @@ export default function ItineraryPage() {
           {days.length > PAGE_SIZE && (
             <div className="flex gap-2">
               {days.map((_, idx) => {
-                const isVisible = idx >= startIndex && idx < startIndex + PAGE_SIZE;
+                const isVisible = idx >= safeStartIndex && idx < safeStartIndex + PAGE_SIZE;
                 return (
                   <div
                     key={idx}
