@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: travel-agent-v2-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: travelagent123
+      POSTGRES_DB: travel_agent_v2
+    ports:
+      - "5432:5432"
+    volumes:
+      - travel_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  travel_db_data:

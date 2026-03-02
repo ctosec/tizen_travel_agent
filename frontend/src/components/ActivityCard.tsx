@@ -1,0 +1,62 @@
+import { useEffect } from 'react';
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { API_BASE } from '../api/client';
+
+interface ActivityCardProps {
+  time: string;
+  activity: string;
+  location: string;
+  photoUrl: string | null;
+  focusKey?: string;
+}
+
+function resolvePhotoUrl(photoUrl: string | null): string {
+  if (!photoUrl) return '';
+  if (photoUrl.startsWith('http')) return photoUrl;
+  const base = API_BASE.replace('/api', '');
+  return `${base}${photoUrl}`;
+}
+
+export default function ActivityCard({
+  time,
+  activity,
+  location,
+  photoUrl,
+  focusKey,
+}: ActivityCardProps) {
+  const { ref, focused } = useFocusable({ focusKey });
+
+  useEffect(() => {
+    if (focused && ref.current) {
+      ref.current.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [focused, ref]);
+
+  return (
+    <div
+      ref={ref}
+      className={`bg-white/5 backdrop-blur-sm border rounded-xl overflow-hidden transition-all duration-200 ${
+        focused ? 'border-purple-400 ring-2 ring-purple-400 scale-105' : 'border-white/10'
+      }`}
+    >
+      {photoUrl && (
+        <div className="h-24 overflow-hidden">
+          <img
+            src={resolvePhotoUrl(photoUrl)}
+            alt={location}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+      <div className="p-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="bg-purple-500/20 text-purple-300 text-xs px-2 py-0.5 rounded font-medium">
+            {time}
+          </span>
+        </div>
+        <p className="text-sm text-white mb-1 line-clamp-2">{activity}</p>
+        <p className="text-xs text-indigo-300 truncate">{location}</p>
+      </div>
+    </div>
+  );
+}

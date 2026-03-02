@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.wgt
+*.tpk
+.env
+backend/.env
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
