@@ -2,10 +2,13 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Travel Agent</title>
     <style>
-      body { background: #0f172a; overflow: hidden; width: 1920px; height: 1080px; }
+      html { background: #0f172a; }
+      body { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%); overflow: hidden; margin: 0; width: 100vw; height: 100vh; cursor: none; }
+      * { cursor: none; }
+      #root { width: 1920px; height: 1080px; transform-origin: top left; }
       /* Hide scrollbars on TV (they still scroll, just no visible bar) */
       ::-webkit-scrollbar { display: none; }
       * { scrollbar-width: none; }

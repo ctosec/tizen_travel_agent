@@ -26,7 +26,6 @@ export default function FocusableButton({
     onEnterPress: () => {
       if (!disabled && onClick) onClick();
     },
-    focusable: !disabled,
   });
 
   useEffect(() => {
