@@ -62,10 +62,10 @@ export default function ItineraryPage() {
     <FocusContext.Provider value={focusKey}>
       <div
         ref={ref}
-        className="w-[1920px] h-[1080px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col overflow-hidden"
+        className="w-[1920px] h-[1080px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col overflow-hidden px-[80px] pt-[50px] pb-[40px]"
       >
         {/* Header */}
-        <div className="pt-6 px-16 pb-3 flex items-center justify-between">
+        <div className="pb-3 flex items-center justify-between">
           <div>
             <h1 className="text-4xl text-white mb-1">여행 일정</h1>
             <p className="text-base text-purple-200">
@@ -126,7 +126,7 @@ export default function ItineraryPage() {
         </div>
 
         {/* Day Columns with scroll arrows */}
-        <div className="flex-1 px-16 overflow-hidden">
+        <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <LoadingSpinner text="AI가 일정을 생성하고 있습니다..." />
@@ -178,7 +178,7 @@ export default function ItineraryPage() {
         </div>
 
         {/* Dot indicators + Bottom Action */}
-        <div className="flex flex-col items-center gap-2 px-16 mb-14">
+        <div className="flex flex-col items-center gap-2 pt-2">
           {/* Dot indicators */}
           {days.length > PAGE_SIZE && (
             <div className="flex gap-2">
@@ -203,9 +203,9 @@ export default function ItineraryPage() {
               className="rounded-full"
               focusedClassName="ring-4 ring-purple-400 scale-105 shadow-purple-500/50"
             >
-              <button className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-14 py-5 rounded-full text-2xl shadow-2xl transition-all duration-300 flex items-center gap-3">
+              <button className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-14 py-5 rounded-full text-xl shadow-2xl transition-all duration-300 flex items-center gap-3">
                 항공편 & 호텔 예약
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>

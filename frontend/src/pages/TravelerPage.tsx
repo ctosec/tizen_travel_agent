@@ -87,10 +87,10 @@ export default function TravelerPage() {
     <FocusContext.Provider value={focusKey}>
       <div
         ref={ref}
-        className="w-[1920px] h-[1080px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col overflow-hidden"
+        className="w-[1920px] h-[1080px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col overflow-hidden px-[80px] pt-[50px] pb-[40px]"
       >
         {/* Header */}
-        <div className="pt-6 px-16 pb-4">
+        <div className="pb-4">
           <h1 className="text-4xl text-white mb-1">여행자 정보</h1>
           <p className="text-base text-purple-200">
             항공편 예약에 필요한 여행자 정보를 입력하세요
@@ -98,7 +98,7 @@ export default function TravelerPage() {
         </div>
 
         {/* Form */}
-        <div className="flex-1 px-16 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           <div className="grid grid-cols-3 gap-x-8 gap-y-5 max-w-[1400px]">
             {/* Basic Info */}
             <FocusableInput
@@ -217,14 +217,14 @@ export default function TravelerPage() {
         </div>
 
         {/* Bottom Buttons */}
-        <div className="flex justify-between items-center px-16 mb-14">
+        <div className="flex justify-between items-center pt-4">
           <FocusableButton
             focusKey="trav-back"
             onClick={() => navigate('/itinerary')}
             className="rounded-full"
             focusedClassName="ring-2 ring-white/50 bg-white/20 scale-105"
           >
-            <button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-10 py-4 rounded-full text-xl transition-all">
+            <button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-10 py-4 rounded-full text-lg transition-all">
               이전
             </button>
           </FocusableButton>
@@ -245,14 +245,14 @@ export default function TravelerPage() {
           >
             <button
               disabled={!canProceed}
-              className={`px-14 py-5 rounded-full text-2xl shadow-2xl transition-all flex items-center gap-3 ${
+              className={`px-12 py-5 rounded-full text-xl shadow-2xl transition-all flex items-center gap-3 ${
                 canProceed
                   ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white'
                   : 'bg-gray-600 text-gray-400 cursor-not-allowed'
               }`}
             >
               항공편 & 호텔 선택
-              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>

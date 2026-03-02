@@ -204,10 +204,10 @@ export default function BookingPage() {
     <FocusContext.Provider value={focusKey}>
       <div
         ref={ref}
-        className="w-[1920px] h-[1080px] bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex flex-col overflow-hidden"
+        className="w-[1920px] h-[1080px] bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex flex-col overflow-hidden px-[80px] pt-[50px] pb-[40px]"
       >
         {/* Header */}
-        <div className="pt-6 px-16 pb-3 flex items-center justify-between">
+        <div className="pb-3 flex items-center justify-between">
           <div>
             <h1 className="text-4xl text-white mb-1">항공편 & 호텔 선택</h1>
             <p className="text-base text-indigo-200">
@@ -246,7 +246,7 @@ export default function BookingPage() {
         </div>
 
         {/* 3-column layout */}
-        <div className="flex-1 px-16 overflow-hidden grid grid-cols-[1fr_1fr_400px] gap-6">
+        <div className="flex-1 overflow-hidden grid grid-cols-[1fr_1fr_400px] gap-6">
           {/* Left: Flights */}
           <div className="flex flex-col h-full min-h-0">
             <div className="flex items-center gap-3 mb-3">
@@ -376,8 +376,7 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {/* Bottom spacer */}
-        <div className="h-3" />
+        {/* Bottom spacer -- removed, safe area from p-[60px] handles it */}
       </div>
     </FocusContext.Provider>
   );
