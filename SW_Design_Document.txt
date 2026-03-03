@@ -1,0 +1,1245 @@
+================================================================================
+  Samsung Tizen TV - AI Travel Agent
+  Software High-Level Design Document
+  Version 1.0 | 2026-03-03
+================================================================================
+
+
+1. DOCUMENT OVERVIEW
+================================================================================
+
+  This document describes the software architecture, module design, data flow,
+  and implementation details of the Tizen Travel Agent application — an AI-
+  powered travel booking system designed for Samsung Tizen Smart TVs.
+
+  The application allows users to:
+    - Browse destination attractions with AI-generated descriptions
+    - Generate AI-powered day-by-day travel itineraries
+    - Search and book flights via Amadeus GDS
+    - Search and book hotels via Amadeus GDS
+    - Pay via QR-to-Phone payment flow (Toss Payments)
+    - Navigate entirely with a TV remote (D-pad + Enter)
+
+
+2. SYSTEM ARCHITECTURE
+================================================================================
+
+  2.1  High-Level Architecture Diagram
+  ─────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │                    Samsung TV (Tizen 4.0+)                          │
+  │                                                                     │
+  │  ┌───────────────────────────────────────────────────────────────┐  │
+  │  │              Frontend (React SPA / .wgt)                      │  │
+  │  │                                                               │  │
+  │  │  React 19  |  Vite 7  |  TypeScript 5.9                      │  │
+  │  │  TV Nav: norigin-spatial-navigation v2.3                      │  │
+  │  │  State: Zustand v5  |  Routing: react-router-dom v7           │  │
+  │  │  Styling: Tailwind CSS v4.1                                   │  │
+  │  │  WebSocket: socket.io-client v4.8 (payment push)              │  │
+  │  │  Design: 1920x1080 fixed, auto-scaled to any TV resolution    │  │
+  │  └──────────────┬──────────────────────┬─────────────────────────┘  │
+  │                 │ REST API (HTTP)       │ WebSocket                  │
+  └─────────────────┼──────────────────────┼────────────────────────────┘
+                    │                      │
+  ┌─────────────────┼──────────────────────┼────────────────────────────┐
+  │                 ▼                      ▼         Backend Server      │
+  │  ┌───────────────────────────────────────────────────────────────┐  │
+  │  │              Backend (NestJS 11)                               │  │
+  │  │                                                               │  │
+  │  │  Modules:                                                     │  │
+  │  │    flights     : search & book (Amadeus GDS)                  │  │
+  │  │    hotels      : search & book (Amadeus GDS)                  │  │
+  │  │    bookings    : CRUD booking records                         │  │
+  │  │    payments    : Toss Payments + WebSocket gateway             │  │
+  │  │    itinerary   : AI trip planning (Google Gemini 2.5 Flash)   │  │
+  │  │    destination : city info & attraction descriptions          │  │
+  │  │    places      : Google Places search & photo proxy           │  │
+  │  │    amadeus     : Amadeus SDK v9 wrapper service               │  │
+  │  │    gemini      : Google Generative AI wrapper                 │  │
+  │  │                                                               │  │
+  │  │  Port: 3000  |  Global prefix: /api                           │  │
+  │  │  Validation: class-validator + class-transformer               │  │
+  │  │  ORM: TypeORM 0.3                                             │  │
+  │  └──────────────┬────────────────────────────────────────────────┘  │
+  │                 │                                                    │
+  │  ┌──────────────▼────────────────────────────────────────────────┐  │
+  │  │              PostgreSQL 16                                     │  │
+  │  │  Tables: bookings, payment_sessions                           │  │
+  │  │  Port: 5432  |  Docker container                              │  │
+  │  └───────────────────────────────────────────────────────────────┘  │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  External Services:
+    ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐
+    │   Amadeus GDS     │  │   Google Gemini   │  │  Google Places    │
+    │   Flight/Hotel    │  │   AI Text Gen     │  │  Search & Photos  │
+    │   Search & Book   │  │   (2.5 Flash)     │  │  (REST v1)        │
+    └───────────────────┘  └───────────────────┘  └───────────────────┘
+    ┌───────────────────┐  ┌───────────────────┐
+    │  Toss Payments    │  │  QR Server API    │
+    │  Korean PG        │  │  QR Code Image    │
+    │  (SDK + REST)     │  │  Generation       │
+    └───────────────────┘  └───────────────────┘
+
+
+  2.2  Technology Stack Summary
+  ─────────────────────────────
+
+  Layer          Technology                    Version     Purpose
+  ─────────────  ────────────────────────────  ──────────  ──────────────────
+  Frontend       React                         19.2        UI library
+                 TypeScript                    5.9         Type safety
+                 Vite                          7.3         Build tool
+                 react-router-dom              7.13        Routing (MemoryRouter)
+                 Zustand                       5.0         State management
+                 norigin-spatial-navigation    2.3         TV D-pad navigation
+                 Tailwind CSS                  4.1         Styling
+                 socket.io-client              4.8         WebSocket client
+  Backend        NestJS                        11.0        Server framework
+                 TypeORM                       0.3         ORM
+                 PostgreSQL                    16          Database
+                 class-validator               0.15        DTO validation
+                 Amadeus SDK                   9.1         GDS integration
+                 @google/generative-ai         0.24        AI text generation
+                 socket.io                     4.8         WebSocket server
+  Infrastructure Docker Compose                            PostgreSQL container
+                 Tizen Studio                              .wgt packaging
+
+
+  2.3  Communication Patterns
+  ────────────────────────────
+
+  Frontend → Backend:
+    - REST API over HTTP (JSON)
+    - Base URL configured via VITE_API_URL environment variable
+    - All endpoints under /api prefix
+    - No authentication (guest mode)
+
+  Backend → Frontend:
+    - WebSocket (Socket.IO) at /payments namespace
+    - Used exclusively for real-time payment status push
+
+  Backend → External APIs:
+    - Amadeus GDS: SDK-based (amadeus npm package)
+    - Google Gemini: SDK-based (@google/generative-ai)
+    - Google Places: REST API with API key header
+    - Toss Payments: REST API with Basic auth
+
+
+3. FRONTEND DESIGN
+================================================================================
+
+  3.1  Directory Structure
+  ─────────────────────────
+
+  frontend/src/
+  ├── main.tsx                    Entry point, spatial nav init, viewport scaling
+  ├── App.tsx                     Route definitions (MemoryRouter)
+  ├── api/
+  │   ├── client.ts               REST API client (Fetch-based)
+  │   └── socket.ts               WebSocket payment listener
+  ├── components/                 11 reusable components
+  │   ├── ActivityCard.tsx         Activity in itinerary day
+  │   ├── AttractionCard.tsx       Attraction showcase card
+  │   ├── FlightCard.tsx           Flight offer card
+  │   ├── FocusableButton.tsx      TV-navigable button wrapper
+  │   ├── FocusableInput.tsx       TV-navigable text input
+  │   ├── HotelCard.tsx            Hotel offer card
+  │   ├── ItineraryDayColumn.tsx   Day column with activities
+  │   ├── LoadingSpinner.tsx       Loading indicator
+  │   └── QRPayment.tsx            QR code payment display
+  ├── hooks/
+  │   ├── usePaymentStatus.ts     WebSocket + polling payment monitor
+  │   └── useTVKeys.ts            TV remote back key handler
+  ├── pages/                      4 pages
+  │   ├── DestinationPage.tsx      Landing: city attractions
+  │   ├── ItineraryPage.tsx        AI itinerary viewer
+  │   ├── TravelerPage.tsx         Traveler information form
+  │   └── BookingPage.tsx          Flight/hotel selection + payment
+  ├── stores/                     5 Zustand stores
+  │   ├── bookingStore.ts          Flight/hotel search & selection
+  │   ├── destinationStore.ts      Destination attractions
+  │   ├── itineraryStore.ts        Itinerary generation & dates
+  │   ├── paymentStore.ts          Payment session management
+  │   └── travelerStore.ts         Traveler info (localStorage persist)
+  ├── types/
+  │   ├── booking.ts               FlightOffer, HotelOffer
+  │   ├── destination.ts           Attraction, DestinationData
+  │   └── itinerary.ts             Activity, ItineraryDay
+  ├── utils/
+  │   ├── currency.ts              KRW conversion & formatting
+  │   └── scrollIntoViewSafe.ts    Safe scrolling for TV viewport
+  └── styles/
+      └── tailwind.css             Tailwind imports
+
+
+  3.2  Application Flow (Page Navigation)
+  ────────────────────────────────────────
+
+  DestinationPage (/)
+    │  Landing page with 5 attraction cards
+    │  User browses attractions using D-pad
+    │  Enter on "여행 만들기" button
+    ▼
+  ItineraryPage (/itinerary)
+    │  AI-generated day-by-day itinerary
+    │  Adjustable date (±1 day) and duration (2-14 days)
+    │  Horizontal carousel: 5 days visible, auto-scroll on focus
+    │  Enter on "항공편 & 호텔 예약" button
+    ▼
+  TravelerPage (/traveler)
+    │  10-field form (name, email, phone, passport, etc.)
+    │  Data persisted to localStorage
+    │  Required fields: lastName, firstName, email, phone
+    │  Enter on "항공편 & 호텔 선택" button (when valid)
+    ▼
+  BookingPage (/booking)
+    │  3-column layout:
+    │    Left: Flight offers list
+    │    Center: Hotel offers list
+    │    Right: Payment panel (price + method + QR)
+    │  Select flight + hotel → choose payment method → QR appears
+    │  Phone scans QR → pays → TV updates via WebSocket
+    ▼
+  (Payment Success shown inline on BookingPage)
+
+  Back navigation: Backspace / XF86Back key returns to previous page
+
+
+  3.3  Page Details
+  ──────────────────
+
+  3.3.1  DestinationPage (Route: /)
+  .................................
+
+  Purpose: Landing page showcasing destination city and top attractions
+  Destination: Spain/Barcelona (hardcoded for demo)
+
+  Layout:
+    ┌────────────────────────────────────────────────────────────┐
+    │  Barcelona, Spain                                          │
+    │  스페인의 활기찬 문화...                                      │
+    │                                                            │
+    │  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐            │
+    │  │ Card │ │ Card │ │ Card │ │ Card │ │ Card │            │
+    │  │  1   │ │  2   │ │  3   │ │  4   │ │  5   │            │
+    │  │320px │ │      │ │      │ │      │ │      │            │
+    │  │x580px│ │      │ │      │ │      │ │      │            │
+    │  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘            │
+    │                                                            │
+    │              [ 여행 만들기 → ]                               │
+    └────────────────────────────────────────────────────────────┘
+
+  State: useDestinationStore (fetches on mount)
+  API: GET /api/destination/Spain/Barcelona
+  Focus: Initial focus on attraction-0, D-pad navigates cards
+  Card Focus Effect: scale(1.1) + blue ring + z-index:10
+
+  3.3.2  ItineraryPage (Route: /itinerary)
+  .........................................
+
+  Purpose: Display AI-generated travel itinerary with adjustable parameters
+
+  Layout:
+    ┌────────────────────────────────────────────────────────────┐
+    │  AI 여행 일정  |  [◀ 날짜 ▶]  [기간 - 5일 +]  [재생성]     │
+    │                                                            │
+    │  ┌─────────┬─────────┬─────────┬─────────┬─────────┐      │
+    │  │  Day 1  │  Day 2  │  Day 3  │  Day 4  │  Day 5  │      │
+    │  │ Mar 17  │ Mar 18  │ Mar 19  │ Mar 20  │ Mar 21  │      │
+    │  │         │         │         │         │         │      │
+    │  │ ┌─────┐ │ ┌─────┐ │ ┌─────┐ │ ┌─────┐ │ ┌─────┐ │      │
+    │  │ │Act 1│ │ │Act 1│ │ │Act 1│ │ │Act 1│ │ │Act 1│ │      │
+    │  │ ├─────┤ │ ├─────┤ │ ├─────┤ │ ├─────┤ │ ├─────┤ │      │
+    │  │ │Act 2│ │ │Act 2│ │ │Act 2│ │ │Act 2│ │ │Act 2│ │      │
+    │  │ ├─────┤ │ ├─────┤ │ ├─────┤ │ ├─────┤ │ ├─────┤ │      │
+    │  │ │Act 3│ │ │Act 3│ │ │Act 3│ │ │Act 3│ │ │Act 3│ │      │
+    │  │ └─────┘ │ └─────┘ │ └─────┘ │ └─────┘ │ └─────┘ │      │
+    │  └─────────┴─────────┴─────────┴─────────┴─────────┘      │
+    │  ● ● ● ○ ○  (dot indicators for pages beyond 5)           │
+    │              [ 항공편 & 호텔 예약 → ]                        │
+    └────────────────────────────────────────────────────────────┘
+
+  State: useItineraryStore
+  API: POST /api/itinerary/generate { country, city, startDate, duration }
+
+  Carousel Mechanism:
+    - All day columns rendered in DOM (not just visible 5)
+    - CSS transform: translateX(-N%) slides the container
+    - Auto-scroll triggered when D-pad focus moves beyond visible window
+    - onFocused callback from ItineraryDayColumn detects child focus
+    - startIndex adjusts to keep focused column in view
+
+  Controls:
+    - Date: ±1 day (default: today + 14 days)
+    - Duration: 2-14 days (default: 5)
+    - Regenerate: Re-calls API with current parameters
+
+  3.3.3  TravelerPage (Route: /traveler)
+  .......................................
+
+  Purpose: Collect traveler information for flight booking
+
+  Layout:
+    ┌────────────────────────────────────────────────────────────┐
+    │  여행자 정보                                                │
+    │                                                            │
+    │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │
+    │  │ 성 (Last)    │ │ 이름 (First) │ │ 이메일       │       │
+    │  └──────────────┘ └──────────────┘ └──────────────┘       │
+    │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │
+    │  │ 전화번호     │ │ 생년월일     │ │ [남] [여]    │       │
+    │  └──────────────┘ └──────────────┘ └──────────────┘       │
+    │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │
+    │  │ 국가코드     │ │ 여권번호     │ │ 여권만료일   │       │
+    │  └──────────────┘ └──────────────┘ └──────────────┘       │
+    │  ┌──────────────┐                                          │
+    │  │ 국적         │                                          │
+    │  └──────────────┘                                          │
+    │                                                            │
+    │  [ ← 이전 ]                    [ 항공편 & 호텔 선택 → ]    │
+    └────────────────────────────────────────────────────────────┘
+
+  State: useTravelerStore (persisted to localStorage key: "traveler-data")
+  Validation: Required fields = lastName, firstName, email, phone
+
+  Input Behavior (TV Remote):
+    - D-pad: Navigates between inputs (focused mode)
+    - Enter or typing key: Enters editing mode
+    - Typing: Characters appended to value
+    - Up/Down while editing: Exits editing, navigates
+    - Escape/XF86Back: Exits editing
+    - Filter: Phone/DOB fields accept digits only
+
+  3.3.4  BookingPage (Route: /booking)
+  .....................................
+
+  Purpose: Search flights/hotels, select offers, and initiate payment
+
+  Layout:
+    ┌──────────────────┬──────────────────┬────────────────┐
+    │   ✈ 항공편       │   🏨 호텔 (4박)  │   💳 결제      │
+    │                  │                  │                │
+    │  ┌────────────┐  │  ┌────────────┐  │  항공편: ₩599K │
+    │  │ Flight 1   │  │  │ Hotel 1    │  │  호텔:  ₩420K │
+    │  └────────────┘  │  └────────────┘  │  ─────────     │
+    │  ┌────────────┐  │  ┌────────────┐  │  합계: ₩1.02M │
+    │  │ Flight 2   │  │  │ Hotel 2    │  │                │
+    │  └────────────┘  │  └────────────┘  │  [카카오페이]  │
+    │  ┌────────────┐  │  ┌────────────┐  │  [토스페이]    │
+    │  │ Flight 3   │  │  │ Hotel 3    │  │  [삼성페이]    │
+    │  └────────────┘  │  └────────────┘  │                │
+    │  ┌────────────┐  │  ┌────────────┐  │  ┌──────────┐  │
+    │  │ Flight 4   │  │  │ Hotel 4    │  │  │ QR Code  │  │
+    │  └────────────┘  │  └────────────┘  │  │ 300x300  │  │
+    │  ┌────────────┐  │  ┌────────────┐  │  └──────────┘  │
+    │  │ Flight 5   │  │  │ Hotel 5    │  │  스캔하세요    │
+    │  └────────────┘  │  └────────────┘  │                │
+    └──────────────────┴──────────────────┴────────────────┘
+
+  State: useBookingStore, useItineraryStore, useTravelerStore, usePaymentStore
+  Hooks: usePaymentStatus (WebSocket + 3s polling)
+
+  APIs Called on Mount:
+    - POST /api/flights/search { originCode:'ICN', destinationCode:'BCN', dateOfDeparture }
+    - POST /api/hotels/search { cityCode:'BCN', checkInDate, checkOutDate }
+
+  Selection: Toggle pattern (Enter on selected item deselects it)
+  Nights: duration - 1 (5-day trip = 4 hotel nights)
+
+  Payment Flow:
+    1. Select flight + hotel → prices shown in right panel
+    2. Choose payment method (카카오페이/토스페이/삼성페이)
+    3. POST /api/payments/sessions creates session
+    4. QR code generated with checkout URL
+    5. Phone scans QR → Toss payment SDK opens
+    6. Payment completes → WebSocket pushes status
+    7. TV shows "결제 완료!" confirmation
+
+
+  3.4  Component Catalog
+  ───────────────────────
+
+  Component             Props                       Purpose
+  ────────────────────  ──────────────────────────  ──────────────────────────
+  FocusableButton       focusKey, onClick,          TV-navigable button.
+                        disabled, className,         D-pad focusable, Enter
+                        focusedClassName,            triggers onClick. Auto-
+                        disabledClassName            scrolls on focus.
+
+  FocusableInput        focusKey, label, value,     TV-navigable text input.
+                        onChange, type, placeholder,  Two modes: focused (D-pad
+                        maxLength, filter            nav) and editing (typing).
+                                                    Enter toggles mode.
+
+  AttractionCard        name, description,          Large card (320x580px)
+                        photoUrl, rating,            with photo, title, rating,
+                        focusKey                     description. Scale 1.1
+                                                    on focus.
+
+  FlightCard            flight, selected,           Displays airline, flight
+                        focusKey, onSelect,          number, departure/arrival,
+                        dictionaries                 stops, duration, price.
+                                                    Blue border when selected.
+
+  HotelCard             hotel, selected,            Displays hotel name, city,
+                        focusKey, onSelect,          room type, description,
+                        nights                       total price. Emerald
+                                                    border when selected.
+
+  ActivityCard          time, activity, location,   Small card for itinerary
+                        photoUrl, focusKey           activity. Shows time badge,
+                                                    activity text, location.
+                                                    Purple ring on focus.
+
+  ItineraryDayColumn    day, focusKey, onFocused    Container for day header +
+                                                    activity cards. Tracks
+                                                    child focus for carousel
+                                                    auto-scroll.
+
+  QRPayment             qrUrl, amount, orderName    Displays QR code image,
+                                                    payment amount, and order
+                                                    description.
+
+  LoadingSpinner        text                        Animated spinner with
+                                                    loading text.
+
+
+  3.5  State Management (Zustand Stores)
+  ───────────────────────────────────────
+
+  Store               Key State                    Persistence   Purpose
+  ──────────────────  ───────────────────────────  ────────────  ──────────────
+  destinationStore    data, loading, error          None          Destination
+                                                                 attractions
+
+  itineraryStore      days[], loading, startDate,   None          AI itinerary
+                      duration                                    generation
+
+  bookingStore        flights[], hotels[],          None          Flight/hotel
+                      selectedFlight,                             search results
+                      selectedHotel, loading                      and selection
+
+  travelerStore       firstName, lastName, email,   localStorage  Traveler info
+                      phone, dateOfBirth, gender,   ("traveler-   for booking
+                      passportNumber, etc.           data")
+
+  paymentStore        orderId, status, qrUrl,       None          Payment
+                      isCreating, selectedMethod                  session state
+
+  Payment Store States: IDLE → PENDING → SUCCESS | FAIL
+
+  Payment Methods:
+    { id: 'kakaopay',   label: '카카오페이', icon: '🟡' }
+    { id: 'tosspay',    label: '토스페이',   icon: '🟦' }
+    { id: 'samsungpay', label: '삼성페이',   icon: '📱' }
+
+
+  3.6  API Client
+  ────────────────
+
+  Base URL: VITE_API_URL + '/api' (e.g., https://server.com/api)
+
+  Endpoints Called:
+    GET  /destination/{country}/{city}          → DestinationData
+    POST /itinerary/generate                    → ItineraryDay[]
+    POST /flights/search                        → FlightOffer[]
+    POST /hotels/search                         → HotelOffer[]
+    POST /payments/sessions                     → { orderId, sessionId }
+    GET  /payments/sessions/{orderId}/status     → { status, data? }
+    GET  /server-info                           → { baseUrl }
+
+  WebSocket (socket.io-client):
+    Namespace: /payments
+    Events:
+      emit 'subscribePayment' (orderId)       → Join room
+      on   'paymentStatus' ({ status, data })  → Receive updates
+      emit 'unsubscribePayment' (orderId)      → Leave room
+
+
+  3.7  Spatial Navigation System
+  ──────────────────────────────
+
+  Library: @noriginmedia/norigin-spatial-navigation v2.3.0
+
+  Initialization (main.tsx):
+    init({ debug: false, visualDebug: false })
+
+  Focus Key Naming Convention:
+    Page             Focus Keys
+    ───────────────  ──────────────────────────────────────
+    Destination      attraction-0..4, make-trip-btn
+    Itinerary        day-col-{N}, day-col-{N}-activity-{M},
+                     date-prev, date-next, dur-down, dur-up,
+                     regenerate-btn, book-btn
+    Traveler         trav-lastname, trav-firstname, trav-email,
+                     trav-phone, trav-dob, trav-male, trav-female,
+                     trav-countrycode, trav-passport, trav-passexpiry,
+                     trav-nationality, trav-back, trav-next
+    Booking          flight-{N}, hotel-{N},
+                     pay-method-kakaopay, pay-method-tosspay,
+                     pay-method-samsungpay, select-all-btn,
+                     deselect-btn
+
+  Navigation Patterns:
+    - Each page wraps content in FocusContext.Provider (focus boundary)
+    - D-pad arrows: Navigate between focusable elements
+    - Enter: Trigger action (click, edit, select)
+    - Backspace/XF86Back: Navigate to previous page
+    - Auto-scroll: Focused element scrolled into view within container
+    - Auto-focus: 100ms delay after data loads to set initial focus
+
+  FocusableInput Special Handling:
+    - Focused mode: D-pad navigates between inputs
+    - Editing mode: Typing characters; D-pad up/down exits editing
+    - Transition: Enter or typing key enters editing; Escape exits
+
+
+  3.8  TV Viewport & Responsive Scaling
+  ──────────────────────────────────────
+
+  Design resolution: 1920 x 1080 (fixed)
+
+  Scaling algorithm (main.tsx):
+    scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080)
+    root.transform = scale(${scale})
+    root.marginLeft = (window.innerWidth - 1920 * scale) / 2
+    root.marginTop = (window.innerHeight - 1080 * scale) / 2
+
+  This provides:
+    - Uniform scaling (no distortion) on any TV resolution
+    - Letterbox centering when aspect ratio differs from 16:9
+    - Gradient background fills letterbox area
+    - Works on 720p, 1080p, 4K TVs
+
+  CSS (index.html):
+    - body: 100vw x 100vh, overflow hidden, cursor none
+    - #root: 1920px x 1080px, transform-origin top left
+    - Scrollbars hidden globally (still scrollable internally)
+
+
+  3.9  Currency Conversion
+  ─────────────────────────
+
+  Hardcoded exchange rates (utils/currency.ts):
+    KRW: 1, EUR: 1500, USD: 1380, GBP: 1750, JPY: 9.2
+
+  Functions:
+    toKRW(amount, currency) → number (converted, rounded)
+    formatKRW(amount) → string ("₩1,234,567")
+    priceToKRW(amount, currency) → string (convert + format)
+
+
+  3.10  Type Definitions
+  ───────────────────────
+
+  FlightOffer:
+    type, id
+    itineraries[]: duration, segments[]
+      segment: departure{iataCode, at}, arrival{iataCode, at},
+               carrierCode, number, duration, numberOfStops
+    price: currency, grandTotal
+
+  HotelOffer:
+    hotel: hotelId, name, cityCode
+    offers[]: checkInDate, checkOutDate,
+              room{typeEstimated{category}, description{text}},
+              price{currency, total}
+
+  DestinationData:
+    country, city
+    attractions[]: name, description, photoUrl, rating, address
+
+  ItineraryDay:
+    day, date
+    activities[]: time, activity, location, photoUrl
+
+
+4. BACKEND DESIGN
+================================================================================
+
+  4.1  Directory Structure
+  ─────────────────────────
+
+  backend/src/
+  ├── main.ts                    Bootstrap, CORS, validation pipe, logging
+  ├── app.module.ts              Root module with TypeORM config
+  ├── server-info.controller.ts  Server URL for QR codes
+  ├── amadeus/
+  │   ├── amadeus.module.ts
+  │   └── amadeus.service.ts     Amadeus SDK wrapper (search & book)
+  ├── bookings/
+  │   ├── bookings.module.ts
+  │   ├── bookings.controller.ts CRUD endpoints
+  │   └── bookings.service.ts    TypeORM repository operations
+  ├── destination/
+  │   ├── destination.module.ts
+  │   ├── destination.controller.ts
+  │   └── destination.service.ts AI descriptions + Places photos
+  ├── entities/
+  │   ├── booking.entity.ts      Booking table definition
+  │   └── payment-session.entity.ts Payment session table
+  ├── flights/
+  │   ├── flights.module.ts
+  │   ├── flights.controller.ts  Search & book endpoints
+  │   └── dto/
+  │       ├── flight-search.dto.ts
+  │       └── flight-book.dto.ts
+  ├── gemini/
+  │   ├── gemini.module.ts
+  │   └── gemini.service.ts      Google AI text/JSON generation
+  ├── hotels/
+  │   ├── hotels.module.ts
+  │   ├── hotels.controller.ts   Search & book endpoints
+  │   └── dto/
+  │       ├── hotel-search.dto.ts
+  │       └── hotel-book.dto.ts
+  ├── itinerary/
+  │   ├── itinerary.module.ts
+  │   ├── itinerary.controller.ts
+  │   └── itinerary.service.ts   AI itinerary with Places photos
+  ├── payments/
+  │   ├── payments.module.ts
+  │   ├── payments.controller.ts Session & completion endpoints
+  │   ├── payments-checkout.controller.ts  Toss checkout HTML
+  │   ├── payments.service.ts    Toss API confirmation
+  │   ├── payment-sessions.service.ts Session CRUD
+  │   └── payment.gateway.ts     WebSocket gateway
+  └── places/
+      ├── places.module.ts
+      ├── places.controller.ts   Search & photo proxy
+      └── places.service.ts      Google Places API client
+
+
+  4.2  Module Dependency Graph
+  ─────────────────────────────
+
+  AppModule (root)
+  ├── ConfigModule (global env vars)
+  ├── TypeOrmModule (PostgreSQL connection)
+  │
+  ├── AmadeusModule
+  │   └── AmadeusService
+  │
+  ├── FlightsModule
+  │   ├── imports: AmadeusModule
+  │   └── FlightsController
+  │
+  ├── HotelsModule
+  │   ├── imports: AmadeusModule
+  │   └── HotelsController
+  │
+  ├── GeminiModule
+  │   └── GeminiService
+  │
+  ├── PlacesModule
+  │   ├── PlacesController
+  │   └── PlacesService
+  │
+  ├── DestinationModule
+  │   ├── imports: GeminiModule, PlacesModule
+  │   ├── DestinationController
+  │   └── DestinationService
+  │
+  ├── ItineraryModule
+  │   ├── imports: GeminiModule, PlacesModule
+  │   ├── ItineraryController
+  │   └── ItineraryService
+  │
+  ├── BookingsModule
+  │   ├── TypeOrmModule.forFeature([Booking])
+  │   ├── BookingsController
+  │   └── BookingsService
+  │
+  ├── PaymentsModule
+  │   ├── imports: AmadeusModule, BookingsModule
+  │   ├── TypeOrmModule.forFeature([PaymentSession])
+  │   ├── PaymentsController
+  │   ├── PaymentsCheckoutController
+  │   ├── PaymentsService
+  │   ├── PaymentSessionsService
+  │   └── PaymentGateway (WebSocket)
+  │
+  └── ServerInfoController
+
+
+  4.3  API Endpoints Reference
+  ─────────────────────────────
+
+  ┌─────────┬──────────────────────────────────────┬──────────────────────┐
+  │ Method  │ Path                                 │ Purpose              │
+  ├─────────┼──────────────────────────────────────┼──────────────────────┤
+  │ GET     │ /api/server-info                     │ Server URL for QR    │
+  │ POST    │ /api/flights/search                  │ Search flights       │
+  │ POST    │ /api/flights/book                    │ Book a flight        │
+  │ POST    │ /api/hotels/search                   │ Search hotels        │
+  │ POST    │ /api/hotels/book                     │ Book a hotel         │
+  │ GET     │ /api/bookings                        │ List bookings        │
+  │ GET     │ /api/bookings/:id                    │ Get single booking   │
+  │ DELETE  │ /api/bookings/:id                    │ Cancel booking       │
+  │ POST    │ /api/payments/sessions               │ Create pay session   │
+  │ GET     │ /api/payments/sessions/:orderId/stat │ Check pay status     │
+  │ POST    │ /api/payments/sessions/:orderId/comp │ Complete payment     │
+  │ GET     │ /api/payments/checkout               │ Toss checkout page   │
+  │ GET     │ /api/payments/toss-result            │ Toss result callback │
+  │ GET     │ /api/destination/:country/:city      │ Destination info     │
+  │ POST    │ /api/itinerary/generate              │ AI itinerary         │
+  │ GET     │ /api/places/search                   │ Search places        │
+  │ GET     │ /api/places/photo/:photoRef          │ Photo proxy          │
+  │ WS      │ /payments                            │ Payment WebSocket    │
+  └─────────┴──────────────────────────────────────┴──────────────────────┘
+
+
+  4.4  Database Schema
+  ─────────────────────
+
+  4.4.1  bookings table
+  .....................
+
+  Column              Type              Constraints        Description
+  ──────────────────  ────────────────  ─────────────────  ──────────────────
+  id                  UUID              PK, auto-gen       Unique booking ID
+  bookingType         VARCHAR           NOT NULL           'flight' or 'hotel'
+  status              VARCHAR           DEFAULT 'confirmed' Booking status
+  pnr                 VARCHAR           NULLABLE           Flight PNR code
+  confirmationNumber  VARCHAR           NULLABLE           Hotel confirmation
+  amadeusOrderId      VARCHAR           NULLABLE           Amadeus order ID
+  bookingData         JSONB                                Full booking details
+  paymentAmount       DECIMAL(12,2)     NULLABLE           Amount paid (KRW)
+  paymentKey          VARCHAR           NULLABLE           Toss payment key
+  createdAt           TIMESTAMP         Auto-generated     Creation time
+  updatedAt           TIMESTAMP         Auto-updated       Last update time
+
+  4.4.2  payment_sessions table
+  .............................
+
+  Column              Type              Constraints        Description
+  ──────────────────  ────────────────  ─────────────────  ──────────────────
+  id                  UUID              PK, auto-gen       Session ID
+  orderId             VARCHAR           UNIQUE, NOT NULL   Order identifier
+  status              VARCHAR           DEFAULT 'PENDING'  PENDING|SUCCESS|
+                                                           FAIL|EXPIRED
+  amount              INTEGER           NOT NULL           Amount in KRW
+  orderName           VARCHAR           NOT NULL           Display name
+  bookingType         VARCHAR           NOT NULL           'flight','hotel',
+                                                           'package'
+  bookingData         JSONB             NULLABLE           Offer data
+  selectedMethod      VARCHAR           NULLABLE           Payment method ID
+  paymentKey          VARCHAR           NULLABLE           Toss confirm key
+  resultData          JSONB             NULLABLE           Final result data
+  createdAt           TIMESTAMP         Auto-generated     Creation time
+  updatedAt           TIMESTAMP         Auto-updated       Last update time
+  expiresAt           TIMESTAMP         NOT NULL           Session expiry
+                                                           (30 min from create)
+
+
+  4.5  Service Details
+  ─────────────────────
+
+  4.5.1  AmadeusService
+  .....................
+
+  SDK: amadeus@9.1.0 (test or production environment)
+  Initialization: Connects with clientId, clientSecret, hostname from env
+
+  Methods:
+    searchFlights(origin, destination, date, adults, class)
+      → amadeus.shopping.flightOffersSearch.get()
+      → Returns max 10 flights in KRW currency
+
+    searchHotels(cityCode, checkIn, checkOut, adults)
+      → Step 1: amadeus.referenceData.locations.hotels.byCity.get()
+      → Step 2: amadeus.shopping.hotelOffersSearch.get() (top 20 hotels)
+      → Returns offers with bestRateOnly in KRW
+
+    bookFlight(flightOffer, travelers)
+      → Step 1: amadeus.shopping.flightOffers.pricing.post() (get final price)
+      → Step 2: amadeus.booking.flightOrders.post() (create order)
+      → Extracts PNR from associatedRecords[0].reference
+      → Includes ticketing agreement (24hr queue)
+
+    bookHotel(offerId, guests, payments)
+      → amadeus.booking.hotelOrders.post()
+      → Maps guests to room associations
+
+  4.5.2  GeminiService
+  .....................
+
+  Model: gemini-2.5-flash (Google Generative AI)
+
+  Methods:
+    generateText(prompt) → string
+      Plain text generation
+
+    generateJSON<T>(prompt) → T
+      Generates text, strips markdown fences, parses JSON
+      Used for structured data (itineraries, descriptions)
+
+  4.5.3  PlacesService
+  .....................
+
+  API: Google Places API v1 (REST)
+
+  Methods:
+    textSearch(query, maxResults)
+      → POST https://places.googleapis.com/v1/places:searchText
+      → Headers: X-Goog-Api-Key, X-Goog-FieldMask
+      → Language: Korean (ko)
+      → Returns: placeId, name, address, location, photoRef, rating
+
+    getPhotoUrl(photoRef, maxWidth)
+      → Constructs Google Places photo URL
+      → Used by photo proxy endpoint
+
+  4.5.4  DestinationService
+  .........................
+
+  Combines Places + Gemini for rich destination data:
+    1. Check 10-minute in-memory cache
+    2. Search Google Places for top 5 attractions
+    3. Generate Korean descriptions via Gemini AI
+    4. Map photos to /api/places/photo/ proxy URLs
+    5. Cache result for 10 minutes
+
+  4.5.5  ItineraryService
+  .......................
+
+  Generates AI-powered travel itineraries:
+    1. Check 10-minute in-memory cache (key: city-duration-date)
+    2. Call Gemini to generate day-by-day schedule (3 activities/day)
+    3. For each activity location, search Google Places for photos
+    4. Set photo URLs to /api/places/photo/:ref?maxWidth=400
+    5. Fallback: Pre-built Barcelona itinerary or generic activities
+       - Timing: 10:00, 14:00, 19:00 (adjusted for Day 1 and last day)
+
+  4.5.6  PaymentsService
+  .......................
+
+  Toss Payments confirmation:
+    If SKIP_TOSS_PAYMENT=true (mock mode):
+      Returns mock success data with calculated VAT
+      Maps selectedMethod to Korean payment provider names
+      Generates random approval number
+
+    If SKIP_TOSS_PAYMENT=false (production):
+      POST https://api.tosspayments.com/v1/payments/confirm
+      Auth: Basic base64(secretKey + ':')
+      Body: { paymentKey, orderId, amount }
+
+  4.5.7  PaymentSessionsService
+  .............................
+
+  Manages PaymentSession entity lifecycle:
+    createSession(data)  → Creates session with 30-min expiry
+    getSession(orderId)  → Returns session or null
+    getSessionStatus(orderId) → Checks expiry, returns status
+    updateSessionStatus(orderId, status, paymentKey?, resultData?)
+                         → Prevents re-updating SUCCESS sessions
+    cleanExpiredSessions() → Batch-expire old PENDING sessions
+
+  4.5.8  BookingsService
+  ......................
+
+  CRUD operations on Booking entity:
+    createBooking(data) → Creates with payment & Amadeus data
+    findAll()           → All bookings, ordered by createdAt DESC
+    findById(id)        → Single booking
+    findByIds(ids)      → Multiple bookings by ID array
+    updateBookingStatus(id, status) → Status update
+
+
+  4.6  WebSocket Gateway
+  ───────────────────────
+
+  Namespace: /payments
+  CORS: origin: '*'
+
+  Events:
+    Connection:
+      handleConnection(client)     → Logs client ID
+      handleDisconnect(client)     → Logs client ID
+
+    Subscription:
+      subscribePayment(orderId)    → Client joins room 'payment:{orderId}'
+      unsubscribePayment(orderId)  → Client leaves room
+
+    Broadcasting:
+      notifyPaymentUpdate(orderId, status, data)
+        → Emits 'paymentStatus' to room 'payment:{orderId}'
+        → Payload: { orderId, status, data }
+
+
+  4.7  Validation (DTOs)
+  ───────────────────────
+
+  Global validation pipe (main.ts):
+    - whitelist: true (strips unknown properties)
+    - forbidNonWhitelisted: true (rejects unknown properties)
+    - transform: true (auto-converts types)
+
+  FlightSearchDto:
+    originCode: @IsString @IsNotEmpty        (e.g., "ICN")
+    destinationCode: @IsString @IsNotEmpty   (e.g., "BCN")
+    dateOfDeparture: @IsString @IsNotEmpty   (e.g., "2026-04-01")
+    adults: @IsNumber @IsOptional            (default: 1)
+    travelClass: @IsString @IsOptional       (default: "ECONOMY")
+
+  FlightBookDto:
+    flightOffer: @IsNotEmpty                 (Amadeus offer object)
+    travelers: @IsNotEmpty                   (traveler array)
+
+  HotelSearchDto:
+    cityCode: @IsString @IsNotEmpty          (e.g., "BCN")
+    checkInDate: @IsString @IsNotEmpty       (e.g., "2026-04-01")
+    checkOutDate: @IsString @IsNotEmpty      (e.g., "2026-04-05")
+    adults: @IsNumber @IsOptional            (default: 1)
+
+  HotelBookDto:
+    offerId: @IsString @IsNotEmpty
+    guests: @IsNotEmpty
+    payments: @IsNotEmpty
+
+
+  4.8  Caching Strategy
+  ──────────────────────
+
+  In-memory caches (JavaScript Map):
+
+  Cache             Key Format              TTL        Data
+  ────────────────  ──────────────────────  ─────────  ──────────────────
+  Destination       "{country}:{city}"      10 min     DestinationData
+  Itinerary         "{city}-{dur}-{date}"   10 min     ItineraryDay[]
+
+  No database-level caching. Amadeus and Toss queries are always real-time.
+
+
+  4.9  Error Handling
+  ────────────────────
+
+  HTTP exceptions used:
+    400 Bad Request         → Missing required fields
+    404 Not Found           → Resource not found
+    502 Bad Gateway         → Upstream API error
+    503 Service Unavailable → API not configured
+
+  Standard error response:
+    { success: false, error: <code>, message: <detail> }
+
+  Amadeus errors extracted from:
+    error.response.statusCode, error.description.detail
+
+  Logging via NestJS Logger:
+    log(), warn(), error() with service context
+
+
+  4.10  Environment Variables
+  ───────────────────────────
+
+  Variable                Value / Example              Required
+  ──────────────────────  ───────────────────────────  ────────
+  DATABASE_HOST           localhost                    Yes
+  DATABASE_PORT           5432                         Yes
+  DATABASE_USER           postgres                     Yes
+  DATABASE_PASSWORD       travelagent123               Yes
+  DATABASE_NAME           travel_agent_v2              Yes
+  AMADEUS_CLIENT_ID       <api_key>                    Yes
+  AMADEUS_CLIENT_SECRET   <api_secret>                 Yes
+  AMADEUS_HOSTNAME        test | prod                  Yes
+  GEMINI_API_KEY          <google_ai_key>              Yes
+  GOOGLE_PLACES_API_KEY   <google_places_key>          Yes
+  TOSS_CLIENT_KEY         <toss_client_key>            Yes
+  TOSS_SECRET_KEY         <toss_secret_key>            Yes
+  SKIP_TOSS_PAYMENT       true | false                 No
+  PUBLIC_BASE_URL         https://xxx.ngrok-free.app   No
+
+
+5. DATA FLOW DIAGRAMS
+================================================================================
+
+  5.1  Complete User Journey
+  ──────────────────────────
+
+  [User opens app on TV]
+       │
+       ▼
+  GET /destination/Spain/Barcelona
+       │ → Google Places search for top 5 attractions
+       │ → Gemini AI generates Korean descriptions
+       │ → Returns attractions with proxied photo URLs
+       ▼
+  [DestinationPage: Browse 5 attraction cards]
+       │ Enter on "여행 만들기"
+       ▼
+  POST /itinerary/generate { country, city, startDate: T+14, duration: 5 }
+       │ → Gemini AI generates 5-day itinerary (3 activities/day)
+       │ → Google Places search for each activity location
+       │ → Returns ItineraryDay[] with photos
+       ▼
+  [ItineraryPage: View/adjust itinerary, change dates/duration]
+       │ Enter on "항공편 & 호텔 예약"
+       ▼
+  [TravelerPage: Fill in traveler information]
+       │ Data saved to localStorage
+       │ Enter on "항공편 & 호텔 선택"
+       ▼
+  POST /flights/search { ICN → BCN, date }
+  POST /hotels/search  { BCN, checkIn, checkOut }
+       │ → Amadeus GDS returns offers
+       ▼
+  [BookingPage: Select flight + hotel]
+       │ Choose payment method
+       ▼
+  POST /payments/sessions { orderId, amount, bookingData, method }
+       │ → PaymentSession created (PENDING, 30-min expiry)
+       ▼
+  [QR code displayed on TV]
+       │ Phone scans QR
+       ▼
+  GET /payments/checkout?orderId=...&amount=...&method=KAKAOPAY
+       │ → Toss Payments SDK loads in phone browser
+       ▼
+  [User completes payment on phone]
+       │ Toss redirects to /payments/toss-result
+       ▼
+  POST /payments/sessions/:orderId/complete { paymentKey, amount }
+       │ → Toss API confirmation (or mock)
+       │ → Amadeus booking (flight + hotel)
+       │ → Booking entity created in PostgreSQL
+       │ → PaymentSession updated to SUCCESS
+       │ → WebSocket: emit 'paymentStatus' to TV
+       ▼
+  [TV shows "결제 완료!" confirmation]
+
+
+  5.2  QR Payment Cross-Network Flow
+  ────────────────────────────────────
+
+  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+  │  Samsung TV  │     │   Backend   │     │  User Phone  │
+  │  (Frontend)  │     │  (NestJS)   │     │  (Browser)   │
+  └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+         │                   │                    │
+         │ POST /sessions    │                    │
+         │──────────────────>│                    │
+         │  { orderId,       │                    │
+         │    amount,        │                    │
+         │    bookingData }  │                    │
+         │<──────────────────│                    │
+         │  { orderId }      │                    │
+         │                   │                    │
+         │ WS: subscribe     │                    │
+         │   (orderId)       │                    │
+         │──────────────────>│                    │
+         │                   │                    │
+         │ Display QR Code   │                    │
+         │ (checkout URL)    │                    │
+         │                   │                    │
+         │                   │    Scan QR Code    │
+         │                   │<───────────────────│
+         │                   │  GET /checkout     │
+         │                   │──────────────────>│
+         │                   │  (Toss SDK HTML)  │
+         │                   │                    │
+         │                   │  User pays         │
+         │                   │<───────────────────│
+         │                   │  GET /toss-result  │
+         │                   │                    │
+         │                   │ Confirm payment    │
+         │                   │ Book on Amadeus    │
+         │                   │ Save to DB         │
+         │                   │                    │
+         │ WS: paymentStatus │                    │
+         │<──────────────────│                    │
+         │  { SUCCESS, data }│                    │
+         │                   │                    │
+         │ Show confirmation │                    │
+         │ "결제 완료!"      │                    │
+         │                   │                    │
+
+
+  5.3  WebSocket Payment Status Monitoring
+  ─────────────────────────────────────────
+
+  Frontend Strategy: Dual monitoring (WebSocket + HTTP polling)
+
+  WebSocket:
+    1. Connect to ws://server:3000/payments (Socket.IO)
+    2. Emit 'subscribePayment' with orderId
+    3. Listen for 'paymentStatus' events
+    4. Update paymentStore on status change
+
+  HTTP Polling (fallback):
+    1. Every 3 seconds: GET /payments/sessions/{orderId}/status
+    2. If status changed from PENDING → update store
+    3. Stop polling on SUCCESS or FAIL
+
+  Both mechanisms run in parallel for reliability.
+
+
+6. TIZEN TV PLATFORM SPECIFICS
+================================================================================
+
+  6.1  App Packaging
+  ───────────────────
+
+  Format: .wgt (W3C Widget, standard for Tizen Web Apps)
+  App ID: KJ3fEe8sss.TravelAgent
+  Package: KJ3fEe8sss
+  Required Tizen Version: 4.0+
+
+  Build Pipeline:
+    1. tsc -b (TypeScript compile)
+    2. vite build --mode tizen (bundle with .env.tizen)
+    3. tizen package -t wgt -s tv-samsung (sign & package)
+    Output: frontend/dist/TravelAgent.wgt
+
+  6.2  config.xml (Tizen Manifest)
+  ─────────────────────────────────
+
+  <?xml version="1.0" encoding="UTF-8"?>
+  <widget id="KJ3fEe8sss.TravelAgent" version="1.0.0">
+    <name>TravelAgent</name>
+    <tizen:application id="KJ3fEe8sss.TravelAgent"
+                       package="KJ3fEe8sss"
+                       required_version="4.0" />
+    <content src="index.html" />
+    <icon src="icon.png" />
+    <access origin="*" subdomains="true" />
+    <tizen:privilege name="http://tizen.org/privilege/internet" />
+    <tizen:privilege name="http://tizen.org/privilege/network.get" />
+    <feature name="http://tizen.org/feature/screen.size.all" />
+    <tizen:setting pointing-device-support="disable" />
+  </widget>
+
+  Key Settings:
+    - access origin="*": Allows all external HTTP requests
+    - pointing-device-support="disable": Forces D-pad mode (no pointer)
+    - privilege/internet: Required for network access
+    - privilege/network.get: Required for network info
+    - screen.size.all: Supports all TV resolutions
+
+  6.3  TV-Specific Adaptations
+  ─────────────────────────────
+
+  D-Pad Navigation:
+    - All interaction via arrow keys + Enter (no mouse/touch)
+    - norigin-spatial-navigation handles focus management
+    - FocusableButton/FocusableInput wrap all interactive elements
+
+  Input Method:
+    - FocusableInput handles typing from TV remote
+    - On-screen keyboard characters detected via isTypingKey()
+    - Editing mode toggled by Enter or typing keys
+
+  Viewport:
+    - Fixed 1920x1080 layout, scaled to fit TV
+    - No browser scrolling (overflow: hidden on body)
+    - Internal scrolling within containers only
+
+  Back Key:
+    - Backspace (keyboard) and XF86Back (TV remote)
+    - useTVKeys hook handles both
+
+  Emulator Network:
+    - Tizen emulator uses QEMU NAT
+    - Host accessed via 10.0.2.2 (configured in .env.tizen)
+    - VITE_API_URL=http://10.0.2.2:3000
+
+
+7. SECURITY CONSIDERATIONS
+================================================================================
+
+  7.1  Implemented
+  ─────────────────
+
+  - Environment-based secrets (no hardcoded credentials)
+  - Global DTO validation (class-validator)
+    - Whitelist strips unknown properties
+    - Transform enables type conversion
+    - forbidNonWhitelisted rejects extra fields
+  - CORS enabled (origin: '*' for Tizen app:// protocol)
+  - Toss payment Basic auth via base64-encoded secret key
+  - Payment session expiry (30 minutes)
+  - Photo proxy prevents direct Google API key exposure to client
+
+  7.2  Not Implemented (Demo/MVP)
+  ────────────────────────────────
+
+  - Authentication / Authorization (all endpoints public, guest mode)
+  - HTTPS/TLS (expected to be handled by reverse proxy)
+  - Rate limiting
+  - CSRF protection
+  - Input sanitization beyond class-validator
+  - Secure random order IDs (currently timestamp-based)
+
+
+8. PERFORMANCE CONSIDERATIONS
+================================================================================
+
+  Frontend:
+    - Fixed 1920x1080 viewport prevents layout recalculation
+    - Viewport scaling computed once on load + resize events
+    - Focus key timeout (100ms) allows DOM to settle
+    - Max 5 items rendered per list (flights, hotels, day columns)
+    - Zustand state updates are granular (minimal re-renders)
+
+  Backend:
+    - In-memory caching for destinations (10 min TTL)
+    - In-memory caching for itineraries (10 min TTL)
+    - Amadeus hotel search limited to top 20 hotels per city
+    - Amadeus flight search limited to 10 results
+    - Photo proxy streams directly (no server-side storage)
+    - WebSocket rooms scope broadcast to specific orders
+
+  Database:
+    - TypeORM synchronize: true (auto-schema, dev mode)
+    - UUID primary keys (no sequential IDs)
+    - JSONB columns for flexible booking/payment data
+    - Minimal indexes (orderId unique constraint)
+
+
+9. EXTERNAL API INTEGRATION SUMMARY
+================================================================================
+
+  API                  SDK/Protocol     Purpose                 Auth Method
+  ───────────────────  ───────────────  ──────────────────────  ─────────────
+  Amadeus GDS          npm SDK v9.1     Flight/hotel search     OAuth2 (SDK)
+                                        and booking             clientId/secret
+  Google Gemini        npm SDK v0.24    AI text & JSON          API key
+                       (2.5 Flash)      generation
+  Google Places        REST API v1      Place search &          API key header
+                                        photo retrieval
+  Toss Payments        REST API +       Korean payment          Basic auth
+                       JS SDK           gateway                 (secretKey)
+  QR Server            REST API         QR code image           None (public)
+                                        generation
+
+
+10. GLOSSARY
+================================================================================
+
+  Term                Definition
+  ──────────────────  ────────────────────────────────────────────────────
+  GDS                 Global Distribution System (Amadeus flight/hotel)
+  PNR                 Passenger Name Record (flight booking reference)
+  IATA                International Air Transport Association (airport codes)
+  KRW                 Korean Won (currency)
+  D-pad               Directional pad (TV remote: up/down/left/right/enter)
+  .wgt                W3C Widget package format (Tizen web app)
+  .tpk                Tizen Package (native apps only, not used here)
+  SPA                 Single Page Application
+  QR                  Quick Response code
+  WebSocket           Full-duplex communication protocol
+  Spatial Navigation  Focus management system for non-pointer devices
+  Zustand             Lightweight React state management library
+  TypeORM             Object-Relational Mapping for TypeScript
+  MemoryRouter        React Router without browser history (TV-safe)
+  Socket.IO           WebSocket library with fallback to polling
+  Toss Payments       Korean online payment gateway service
+
+
+================================================================================
+  End of Document
+================================================================================
