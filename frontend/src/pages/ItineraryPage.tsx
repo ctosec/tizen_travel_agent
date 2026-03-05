@@ -155,6 +155,7 @@ export default function ItineraryPage() {
                   <ItineraryDayColumn
                     day={day}
                     focusKey={`day-col-${day.day}`}
+                    totalDays={days.length}
                     onFocused={() => handleDayFocus(idx)}
                   />
                 </div>

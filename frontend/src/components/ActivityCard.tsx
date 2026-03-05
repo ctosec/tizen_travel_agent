@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { useEffect, useCallback } from 'react';
+import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { API_BASE } from '../api/client';
 
 interface ActivityCardProps {
@@ -8,6 +8,9 @@ interface ActivityCardProps {
   location: string;
   photoUrl: string | null;
   focusKey?: string;
+  dayNum?: number;
+  activityIndex?: number;
+  totalDays?: number;
 }
 
 function resolvePhotoUrl(photoUrl: string | null): string {
@@ -23,8 +26,27 @@ export default function ActivityCard({
   location,
   photoUrl,
   focusKey,
+  dayNum,
+  activityIndex,
+  totalDays,
 }: ActivityCardProps) {
-  const { ref, focused } = useFocusable({ focusKey });
+  const onArrowPress = useCallback(
+    (direction: string) => {
+      if (dayNum == null || activityIndex == null || totalDays == null) return true;
+      if (direction === 'right' && dayNum < totalDays) {
+        setFocus(`day-col-${dayNum + 1}-activity-${activityIndex}`);
+        return false;
+      }
+      if (direction === 'left' && dayNum > 1) {
+        setFocus(`day-col-${dayNum - 1}-activity-${activityIndex}`);
+        return false;
+      }
+      return true;
+    },
+    [dayNum, activityIndex, totalDays],
+  );
+
+  const { ref, focused } = useFocusable({ focusKey, onArrowPress });
 
   useEffect(() => {
     if (focused && ref.current) {

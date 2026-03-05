@@ -55,6 +55,7 @@
     tizen_travel_agent/
     ├── backend/             NestJS API server
     ├── frontend/            React SPA (Tizen Web App)
+    ├── cloudflare-worker/   Gemini API proxy (Cloudflare Worker)
     └── docker-compose.yml   PostgreSQL container
 
 
@@ -100,6 +101,7 @@
       AMADEUS_HOSTNAME=test
 
       GEMINI_API_KEY=<your_google_gemini_api_key>
+      GEMINI_BASE_URL=                              # optional: Cloudflare Worker proxy URL
       GOOGLE_PLACES_API_KEY=<your_google_places_api_key>
 
       TOSS_CLIENT_KEY=<your_toss_client_key>
@@ -111,6 +113,17 @@
           Get Toss keys from https://developers.tosspayments.com
           Get Gemini API key from https://aistudio.google.com/apikey
           Get Google Places key from https://console.cloud.google.com
+
+    Gemini API region restriction:
+      If the server's IP is in a region not supported by Google's Gemini API
+      (error: "User location is not supported"), set GEMINI_BASE_URL to a
+      Cloudflare Worker proxy. Deploy the worker from cloudflare-worker/:
+
+        cd cloudflare-worker
+        npx wrangler login
+        npx wrangler deploy
+
+      Then set: GEMINI_BASE_URL=https://gemini-proxy.<your>.workers.dev
 
   2.5  Build
   ──────────
@@ -305,7 +318,71 @@
       wrapper which invokes Java directly.
 
 
-4. QR PAYMENT - CROSS-NETWORK SETUP
+4. DYNAMIC DESTINATION - LAUNCHING WITH CITY/COUNTRY
+================================================================================
+
+  The app supports dynamic destination selection. By default it loads
+  Barcelona, Spain. Other apps can launch TravelAgent with a specific
+  city/country via Tizen app_control data.
+
+  4.1  How it works
+  ─────────────────
+    On startup, the app reads city/country from two sources (in order):
+
+    1. Tizen app_control data (key: "city", "country")
+    2. URL query parameters (?city=Rome&country=Italy)
+
+    If neither is provided, the default (Barcelona, Spain) is used.
+
+  4.2  Launching from another Tizen app (app_control)
+  ────────────────────────────────────────────────────
+    From another Tizen web/native app:
+
+      var appControl = new tizen.ApplicationControl(
+        "http://tizen.org/appcontrol/operation/default",
+        null,
+        null,
+        null,
+        [
+          new tizen.ApplicationControlData("city", ["Rome"]),
+          new tizen.ApplicationControlData("country", ["Italy"])
+        ]
+      );
+      tizen.application.launchAppControl(
+        appControl,
+        "KJ3fEe8sss.TravelAgent",
+        function() { console.log("launched"); },
+        function(e) { console.error(e); }
+      );
+
+  4.3  Launching from shell (sdb / serial console)
+  ─────────────────────────────────────────────────
+    app_launcher -s KJ3fEe8sss.TravelAgent -d city Rome -d country Italy
+
+  4.4  Launching via URL query params (browser / dev mode)
+  ─────────────────────────────────────────────────────────
+    http://localhost:5173/?city=Rome&country=Italy
+
+  4.5  Supported cities (IATA airport code mapping)
+  ──────────────────────────────────────────────────
+    The app maps city names to IATA airport codes for flight/hotel search.
+    60+ cities are pre-mapped (see frontend/src/utils/airportCodes.ts):
+
+      Barcelona (BCN), Rome (FCO), Paris (CDG), London (LHR),
+      Tokyo (NRT), New York (JFK), Seoul (ICN), Bangkok (BKK),
+      Sydney (SYD), Dubai (DXB), Istanbul (IST), ...
+
+    Unknown cities use the first 3 characters as a fallback code.
+
+  4.6  What changes per destination
+  ──────────────────────────────────
+    - Destination page: city name, description, attractions
+    - Itinerary page: AI-generated schedule for the target city
+    - Booking page: flights from ICN to the city's airport code,
+      hotels near the destination
+
+
+5. QR PAYMENT - CROSS-NETWORK SETUP
 ================================================================================
 
   The payment flow works like this:
@@ -315,7 +392,7 @@
   The QR code contains a URL to the backend's checkout page.
   The phone must be able to reach this URL.
 
-  4.1  Problem: localhost / LAN IP not reachable
+  5.1  Problem: localhost / LAN IP not reachable
   ────────────────────────────────────────────────
     By default, the backend auto-detects its LAN IP (e.g. 192.168.x.x).
     This only works if the phone is on the SAME local network.
@@ -323,7 +400,7 @@
     If the phone is on mobile data or a different network, it cannot
     reach the LAN IP, and the QR payment will fail.
 
-  4.2  Solution: Set PUBLIC_BASE_URL
+  5.2  Solution: Set PUBLIC_BASE_URL
   ───────────────────────────────────
     Set the PUBLIC_BASE_URL environment variable in backend/.env
     to a publicly accessible URL.
@@ -355,7 +432,7 @@
       # Add to backend/.env:
       PUBLIC_BASE_URL=https://your-domain.com
 
-  4.3  How it works internally
+  5.3  How it works internally
   ────────────────────────────
     1. TV app calls GET /api/server-info
     2. Backend returns { baseUrl: PUBLIC_BASE_URL || "http://<LAN_IP>:3000" }
@@ -365,7 +442,7 @@
     6. After payment, Toss redirects to <baseUrl>/api/payments/toss-result
     7. Backend confirms payment and pushes status via WebSocket to TV
 
-  4.4  Verify QR URL
+  5.4  Verify QR URL
   ──────────────────
     curl http://localhost:3000/api/server-info
 

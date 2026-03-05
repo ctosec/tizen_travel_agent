@@ -6,12 +6,14 @@ import ActivityCard from './ActivityCard';
 interface ItineraryDayColumnProps {
   day: ItineraryDay;
   focusKey: string;
+  totalDays: number;
   onFocused?: () => void;
 }
 
 export default function ItineraryDayColumn({
   day,
   focusKey: propFocusKey,
+  totalDays,
   onFocused,
 }: ItineraryDayColumnProps) {
   const { ref, hasFocusedChild, focusKey } = useFocusable({
@@ -45,6 +47,9 @@ export default function ItineraryDayColumn({
               location={activity.location}
               photoUrl={activity.photoUrl}
               focusKey={`${focusKey}-activity-${idx}`}
+              dayNum={day.day}
+              activityIndex={idx}
+              totalDays={totalDays}
             />
           ))}
         </div>
