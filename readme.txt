@@ -452,4 +452,108 @@
     Without PUBLIC_BASE_URL (LAN only):
       { "baseUrl": "http://192.168.x.x:3000", "isPublic": false }
 
+
+6. LOCAL DEVELOPMENT - QUICK START
+================================================================================
+
+  Run everything on a local machine (no Docker, no cloud, no Cloudflare).
+  The Gemini API works directly from Korean/US IPs without a proxy.
+
+  6.1  Prerequisites
+  ──────────────────
+    - Node.js 20+
+    - PostgreSQL 16 running locally (or via Docker: docker compose up -d)
+    - Tizen Studio with TV Extensions (for emulator testing)
+
+  6.2  Start backend
+  ──────────────────
+    cd backend
+    npm install
+
+    # Create .env (copy from example or create manually)
+    cat > .env << 'EOF'
+    DATABASE_HOST=localhost
+    DATABASE_PORT=5432
+    DATABASE_USER=postgres
+    DATABASE_PASSWORD=travelagent123
+    DATABASE_NAME=travel_agent_v2
+    AMADEUS_CLIENT_ID=<your_key>
+    AMADEUS_CLIENT_SECRET=<your_secret>
+    AMADEUS_HOSTNAME=test
+    GEMINI_API_KEY=<your_gemini_key>
+    GOOGLE_PLACES_API_KEY=<your_places_key>
+    TOSS_CLIENT_KEY=test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq
+    TOSS_SECRET_KEY=test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R
+    SKIP_TOSS_PAYMENT=true
+    EOF
+
+    # No GEMINI_BASE_URL needed for local dev (direct API access)
+
+    npm run start:dev
+    # Backend running at http://localhost:3000
+
+  6.3  Start frontend (browser dev mode)
+  ───────────────────────────────────────
+    cd frontend
+    npm install
+
+    # .env should point to local backend
+    echo "VITE_API_URL=http://localhost:3000" > .env
+
+    npm run dev
+    # Opens at http://localhost:5173
+
+    # Test with dynamic city:
+    #   http://localhost:5173/?city=Rome&country=Italy
+    #   http://localhost:5173/?city=Paris&country=France
+    #   http://localhost:5173/?city=Tokyo&country=Japan
+
+  6.4  Test on Tizen Emulator (from local backend)
+  ─────────────────────────────────────────────────
+    # 1. Set API URL for emulator (QEMU NAT gateway to host)
+    echo "VITE_API_URL=http://10.0.2.2:3000" > frontend/.env.tizen
+
+    # 2. Build, package, install, run
+    cd frontend
+    npm run build:tizen
+    bash tizen-cli.sh package -t wgt -s <your_cert_profile> -- dist
+    bash tizen-cli.sh install -n dist/TravelAgent.wgt -s emulator-26101
+    bash tizen-cli.sh run -p KJ3fEe8sss.TravelAgent -s emulator-26101
+
+    # 3. Launch with a specific city from TV shell:
+    #    app_launcher -s KJ3fEe8sss.TravelAgent -d city Rome -d country Italy
+
+  6.5  Local vs Production differences
+  ─────────────────────────────────────
+    ┌──────────────────────┬───────────────────────┬─────────────────────────┐
+    │                      │ Local                 │ Production              │
+    ├──────────────────────┼───────────────────────┼─────────────────────────┤
+    │ Backend URL          │ http://localhost:3000  │ https://your-domain.com │
+    │ GEMINI_BASE_URL      │ (not needed)           │ CF Worker proxy URL     │
+    │ VITE_API_URL         │ http://localhost:3000  │ https://your-domain.com │
+    │ .env.tizen API URL   │ http://10.0.2.2:3000  │ https://your-domain.com │
+    │ Database             │ Local PostgreSQL       │ Docker / managed DB     │
+    │ SKIP_TOSS_PAYMENT    │ true                   │ false                   │
+    │ Certificate profile  │ tv-samsung / develop   │ tv-samsung              │
+    └──────────────────────┴───────────────────────┴─────────────────────────┘
+
+  6.6  Verify everything works
+  ────────────────────────────
+    # Test destination API
+    curl http://localhost:3000/api/destination/Italy/Rome
+
+    # Test itinerary generation (Gemini AI)
+    curl -X POST http://localhost:3000/api/itinerary/generate \
+      -H "Content-Type: application/json" \
+      -d '{"country":"Italy","city":"Rome","startDate":"2026-03-15","duration":"3"}'
+
+    # Test flight search
+    curl -X POST http://localhost:3000/api/flights/search \
+      -H "Content-Type: application/json" \
+      -d '{"originCode":"ICN","destinationCode":"FCO","dateOfDeparture":"2026-03-15","adults":1}'
+
+    If itinerary returns activities like "콜로세움 관람" instead of
+    "도시 중심부 관광", Gemini AI is working correctly.
+    If it returns generic fallback activities, check GEMINI_API_KEY.
+
 ================================================================================
