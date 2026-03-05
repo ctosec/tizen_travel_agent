@@ -158,7 +158,8 @@
   │   ├── ItineraryPage.tsx        AI itinerary viewer
   │   ├── TravelerPage.tsx         Traveler information form
   │   └── BookingPage.tsx          Flight/hotel selection + payment
-  ├── stores/                     5 Zustand stores
+  ├── stores/                     6 Zustand stores
+  │   ├── travelConfigStore.ts     Global city/country config + launch param parser
   │   ├── bookingStore.ts          Flight/hotel search & selection
   │   ├── destinationStore.ts      Destination attractions
   │   ├── itineraryStore.ts        Itinerary generation & dates
@@ -169,13 +170,89 @@
   │   ├── destination.ts           Attraction, DestinationData
   │   └── itinerary.ts             Activity, ItineraryDay
   ├── utils/
+  │   ├── airportCodes.ts          City → IATA airport code mapping (60+ cities)
   │   ├── currency.ts              KRW conversion & formatting
   │   └── scrollIntoViewSafe.ts    Safe scrolling for TV viewport
   └── styles/
       └── tailwind.css             Tailwind imports
 
 
-  3.2  Application Flow (Page Navigation)
+  3.2  Dynamic Destination Configuration
+  ───────────────────────────────────────
+
+  The app supports dynamic destination selection at launch time.
+  The destination (city/country) is resolved once at startup and shared
+  across all pages via a global Zustand store.
+
+  3.2.1  Startup Flow (main.tsx)
+  .............................
+
+    ┌──────────────┐     ┌─────────────────────────────────────────────┐
+    │  App Launch   │────▶│  parseLaunchParams()                        │
+    └──────────────┘     │                                             │
+                         │  1. Try Tizen app_control:                  │
+                         │     tizen.application                       │
+                         │       .getCurrentApplication()              │
+                         │       .getRequestedAppControl()             │
+                         │       .appControl.data                      │
+                         │     → Extract key="city", key="country"     │
+                         │                                             │
+                         │  2. Fallback: URL query params              │
+                         │     new URLSearchParams(location.search)    │
+                         │     → ?city=Rome&country=Italy              │
+                         │                                             │
+                         │  3. If found: setDestination(city, country) │
+                         │     If not: keep default (Barcelona, Spain) │
+                         └──────────────────┬──────────────────────────┘
+                                            │
+                                            ▼
+                         ┌─────────────────────────────────────────────┐
+                         │  travelConfigStore (Zustand global state)   │
+                         │                                             │
+                         │  city: "Rome"                               │
+                         │  country: "Italy"                           │
+                         │  airportCode: "FCO"  ← getAirportCode()    │
+                         └──────────┬──────────┬───────────┬───────────┘
+                                    │          │           │
+                         ┌──────────▼──┐ ┌─────▼─────┐ ┌──▼──────────┐
+                         │ Destination │ │ Itinerary │ │  Booking    │
+                         │ Page        │ │ Page      │ │  Page       │
+                         │             │ │           │ │             │
+                         │ city,country│ │ city,     │ │ city,       │
+                         │ → fetch     │ │ country   │ │ airportCode │
+                         │   attractions│ │ → generate│ │ → search    │
+                         │             │ │   AI plan │ │   flights   │
+                         │             │ │           │ │   & hotels  │
+                         └─────────────┘ └───────────┘ └─────────────┘
+
+  3.2.2  travelConfigStore Interface
+  ..................................
+
+    interface TravelConfigState {
+      city: string;              // e.g. "Rome"
+      country: string;           // e.g. "Italy"
+      airportCode: string;       // e.g. "FCO" (auto-mapped from city)
+      setDestination: (city: string, country: string) => void;
+    }
+
+    The airportCode is automatically resolved via getAirportCode(city)
+    which maps 60+ city names to IATA codes. Unknown cities fall back
+    to the first 3 characters uppercased.
+
+  3.2.3  Launch Methods
+  .....................
+
+    Method 1 — Tizen app_control (from another TV app):
+      app_launcher -s KJ3fEe8sss.TravelAgent -d city Rome -d country Italy
+
+    Method 2 — URL query params (browser / dev mode):
+      http://localhost:5173/?city=Rome&country=Italy
+
+    Method 3 — Default:
+      No params → Barcelona, Spain (BCN)
+
+
+  3.3  Application Flow (Page Navigation)
   ────────────────────────────────────────
 
   DestinationPage (/)
@@ -208,10 +285,10 @@
   Back navigation: Backspace / XF86Back key returns to previous page
 
 
-  3.3  Page Details
+  3.4  Page Details
   ──────────────────
 
-  3.3.1  DestinationPage (Route: /)
+  3.4.1  DestinationPage (Route: /)
   .................................
 
   Purpose: Landing page showcasing destination city and top attractions
@@ -237,7 +314,7 @@
   Focus: Initial focus on attraction-0, D-pad navigates cards
   Card Focus Effect: scale(1.1) + blue ring + z-index:10
 
-  3.3.2  ItineraryPage (Route: /itinerary)
+  3.4.2  ItineraryPage (Route: /itinerary)
   .........................................
 
   Purpose: Display AI-generated travel itinerary with adjustable parameters
@@ -277,7 +354,7 @@
     - Duration: 2-14 days (default: 5)
     - Regenerate: Re-calls API with current parameters
 
-  3.3.3  TravelerPage (Route: /traveler)
+  3.4.3  TravelerPage (Route: /traveler)
   .......................................
 
   Purpose: Collect traveler information for flight booking
@@ -313,7 +390,7 @@
     - Escape/XF86Back: Exits editing
     - Filter: Phone/DOB fields accept digits only
 
-  3.3.4  BookingPage (Route: /booking)
+  3.4.4  BookingPage (Route: /booking)
   .....................................
 
   Purpose: Search flights/hotels, select offers, and initiate payment
@@ -359,7 +436,7 @@
     7. TV shows "결제 완료!" confirmation
 
 
-  3.4  Component Catalog
+  3.5  Component Catalog
   ───────────────────────
 
   Component             Props                       Purpose
@@ -407,11 +484,16 @@
                                                     loading text.
 
 
-  3.5  State Management (Zustand Stores)
+  3.6  State Management (Zustand Stores)
   ───────────────────────────────────────
 
   Store               Key State                    Persistence   Purpose
   ──────────────────  ───────────────────────────  ────────────  ──────────────
+  travelConfigStore   city, country, airportCode    None          Global destination
+                                                                 config. Set once at
+                                                                 startup via
+                                                                 parseLaunchParams()
+
   destinationStore    data, loading, error          None          Destination
                                                                  attractions
 
@@ -437,7 +519,7 @@
     { id: 'samsungpay', label: '삼성페이',   icon: '📱' }
 
 
-  3.6  API Client
+  3.7  API Client
   ────────────────
 
   Base URL: VITE_API_URL + '/api' (e.g., https://server.com/api)
@@ -459,7 +541,7 @@
       emit 'unsubscribePayment' (orderId)      → Leave room
 
 
-  3.7  Spatial Navigation System
+  3.8  Spatial Navigation System
   ──────────────────────────────
 
   Library: @noriginmedia/norigin-spatial-navigation v2.3.0
@@ -497,7 +579,7 @@
     - Transition: Enter or typing key enters editing; Escape exits
 
 
-  3.8  TV Viewport & Responsive Scaling
+  3.9  TV Viewport & Responsive Scaling
   ──────────────────────────────────────
 
   Design resolution: 1920 x 1080 (fixed)
@@ -520,7 +602,7 @@
     - Scrollbars hidden globally (still scrollable internally)
 
 
-  3.9  Currency Conversion
+  3.10  Currency Conversion
   ─────────────────────────
 
   Hardcoded exchange rates (utils/currency.ts):

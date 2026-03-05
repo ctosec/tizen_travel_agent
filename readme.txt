@@ -327,12 +327,26 @@
 
   4.1  How it works
   ─────────────────
-    On startup, the app reads city/country from two sources (in order):
+    On startup (main.tsx), parseLaunchParams() resolves city/country
+    from two sources in order:
 
     1. Tizen app_control data (key: "city", "country")
+       - tizen.application.getCurrentApplication()
+         .getRequestedAppControl().appControl.data
     2. URL query parameters (?city=Rome&country=Italy)
+       - new URLSearchParams(window.location.search)
 
     If neither is provided, the default (Barcelona, Spain) is used.
+
+    The resolved values are stored in a Zustand global store
+    (travelConfigStore) which also auto-maps the city name to an
+    IATA airport code via getAirportCode() (60+ cities supported).
+
+    All pages read from this store:
+      - DestinationPage: fetchDestination(country, city)
+      - ItineraryPage:   generateItinerary(country, city)
+      - BookingPage:     searchFlights('ICN', airportCode, ...)
+                         searchHotels(airportCode, ...)
 
   4.2  Launching from another Tizen app (app_control)
   ────────────────────────────────────────────────────
