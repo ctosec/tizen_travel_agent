@@ -16,9 +16,15 @@ export class GeminiService implements OnModuleInit {
       return;
     }
     const genAI = new GoogleGenerativeAI(apiKey);
+    const baseUrl = this.configService.get<string>('GEMINI_BASE_URL', '');
+    const requestOptions: Record<string, string> = { apiVersion: 'v1' };
+    if (baseUrl) {
+      requestOptions.baseUrl = baseUrl;
+      this.logger.log(`Using Gemini proxy: ${baseUrl}`);
+    }
     this.model = genAI.getGenerativeModel(
       { model: 'gemini-2.5-flash' },
-      { apiVersion: 'v1' },
+      requestOptions,
     );
     this.logger.log('Gemini model initialized');
   }
