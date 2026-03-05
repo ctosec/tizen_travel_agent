@@ -5,6 +5,7 @@ import { useBookingStore } from '../stores/bookingStore';
 import { useItineraryStore } from '../stores/itineraryStore';
 import { usePaymentStore, PAYMENT_METHODS } from '../stores/paymentStore';
 import { useTravelerStore } from '../stores/travelerStore';
+import { useTravelConfigStore } from '../stores/travelConfigStore';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { toKRW, formatKRW } from '../utils/currency';
 import FlightCard from '../components/FlightCard';
@@ -63,6 +64,7 @@ function PaymentMethodButton({
 /* ------------------------------------------------------------------ */
 export default function BookingPage() {
   const navigate = useNavigate();
+  const { city, airportCode } = useTravelConfigStore();
   const { ref, focusKey } = useFocusable({ isFocusBoundary: true });
   const {
     flights,
@@ -106,14 +108,14 @@ export default function BookingPage() {
   // Search flights and hotels on mount
   useEffect(() => {
     if (flights.length === 0 && !flightsLoading) {
-      searchFlights('ICN', 'BCN', startDate);
+      searchFlights('ICN', airportCode, startDate);
     }
     if (hotels.length === 0 && !hotelsLoading) {
       const checkOut = new Date(startDate);
       checkOut.setDate(checkOut.getDate() + nights);
-      searchHotels('BCN', startDate, checkOut.toISOString().split('T')[0]);
+      searchHotels(airportCode, startDate, checkOut.toISOString().split('T')[0]);
     }
-  }, [flights.length, hotels.length, flightsLoading, hotelsLoading, searchFlights, searchHotels, startDate, nights]);
+  }, [flights.length, hotels.length, flightsLoading, hotelsLoading, searchFlights, searchHotels, startDate, nights, airportCode]);
 
   // Toggle selection handlers
   const handleFlightSelect = useCallback(
@@ -147,7 +149,7 @@ export default function BookingPage() {
   const hotelPriceKRW = toKRW(Number(selectedHotel?.offers?.[0]?.price?.total || 0), hotelCurrency);
   const totalAmountKRW = flightPriceKRW + hotelPriceKRW;
   const canPay = selectedFlight && selectedHotel;
-  const orderName = 'Barcelona Travel Package';
+  const orderName = `${city} Travel Package`;
 
   // Format traveler data for booking
   function formatDateForApi(yyyymmdd: string): string {

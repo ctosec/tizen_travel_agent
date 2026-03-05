@@ -2,15 +2,14 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { useDestinationStore } from '../stores/destinationStore';
+import { useTravelConfigStore } from '../stores/travelConfigStore';
 import AttractionCard from '../components/AttractionCard';
 import FocusableButton from '../components/FocusableButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const COUNTRY = 'Spain';
-const CITY = 'Barcelona';
-
 export default function DestinationPage() {
   const navigate = useNavigate();
+  const { city, country } = useTravelConfigStore();
   const { data, loading, fetchDestination } = useDestinationStore();
   const { ref, focusKey } = useFocusable({
     isFocusBoundary: true,
@@ -18,9 +17,9 @@ export default function DestinationPage() {
 
   useEffect(() => {
     if (!data) {
-      fetchDestination(COUNTRY, CITY);
+      fetchDestination(country, city);
     }
-  }, [data, fetchDestination]);
+  }, [data, fetchDestination, country, city]);
 
   // Set initial focus when attractions load
   useEffect(() => {
@@ -38,9 +37,9 @@ export default function DestinationPage() {
       >
         {/* Header */}
         <div>
-          <h1 className="text-7xl text-white mb-4">{data?.city || CITY}</h1>
+          <h1 className="text-7xl text-white mb-4">{data?.city || city}</h1>
           <p className="text-2xl text-blue-200">
-            스페인의 활기찬 문화와 가우디의 예술이 살아있는 도시
+            {country}의 매력적인 도시, {data?.city || city}를 탐험해보세요
           </p>
         </div>
 

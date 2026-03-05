@@ -7,6 +7,10 @@
   <tizen:application id="KJ3fEe8sss.TravelAgent"
                      package="KJ3fEe8sss"
                      required_version="4.0" />
+  <tizen:app-control>
+    <tizen:src name="index.html" />
+    <tizen:operation name="http://tizen.org/appcontrol/operation/default" />
+  </tizen:app-control>
   <content src="index.html" />
   <icon src="icon.png" />
   <access origin="*" subdomains="true" />

@@ -3,12 +3,16 @@ import { createRoot } from 'react-dom/client';
 import { init, setFocus, navigateByDirection, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
 import App from './App.tsx';
 import { fetchServerBaseUrl } from './api/client';
+import { parseLaunchParams } from './stores/travelConfigStore';
 import './styles/tailwind.css';
 
 init({
   debug: false,
   visualDebug: false,
 });
+
+// Parse city/country from Tizen app_control or URL query params
+parseLaunchParams();
 
 // Pre-fetch server LAN IP for QR code URLs (needed on Tizen emulator)
 fetchServerBaseUrl();

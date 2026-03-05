@@ -2,17 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { useItineraryStore } from '../stores/itineraryStore';
+import { useTravelConfigStore } from '../stores/travelConfigStore';
 import ItineraryDayColumn from '../components/ItineraryDayColumn';
 import FocusableButton from '../components/FocusableButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useTVKeys } from '../hooks/useTVKeys';
 
-const COUNTRY = 'Spain';
-const CITY = 'Barcelona';
 const PAGE_SIZE = 5;
 
 export default function ItineraryPage() {
   const navigate = useNavigate();
+  const { city, country } = useTravelConfigStore();
   const { days, loading, startDate, duration, setStartDate, setDuration, generateItinerary } =
     useItineraryStore();
   const { ref, focusKey } = useFocusable({
@@ -24,9 +24,9 @@ export default function ItineraryPage() {
 
   useEffect(() => {
     if (days.length === 0 && !loading) {
-      generateItinerary(COUNTRY, CITY);
+      generateItinerary(country, city);
     }
-  }, [days.length, loading, generateItinerary]);
+  }, [days.length, loading, generateItinerary, country, city]);
 
   // Reset paging when days change (regeneration)
   useEffect(() => {
@@ -51,8 +51,8 @@ export default function ItineraryPage() {
   );
 
   const handleRegenerate = useCallback(() => {
-    generateItinerary(COUNTRY, CITY);
-  }, [generateItinerary]);
+    generateItinerary(country, city);
+  }, [generateItinerary, country, city]);
 
   // Auto-scroll when a day column receives focus
   const handleDayFocus = useCallback((dayIndex: number) => {
@@ -77,7 +77,7 @@ export default function ItineraryPage() {
           <div>
             <h1 className="text-4xl text-white mb-1">여행 일정</h1>
             <p className="text-base text-purple-200">
-              {CITY}, {COUNTRY} — AI가 생성한 맞춤 일정
+              {city}, {country} — AI가 생성한 맞춤 일정
             </p>
           </div>
           {/* Date & Duration Controls */}
