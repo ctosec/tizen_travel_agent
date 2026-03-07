@@ -11,6 +11,7 @@ namespace TravelAgent.Components
         private readonly TextLabel _nameLabel;
         private readonly TextLabel _ratingLabel;
         private readonly TextLabel _descLabel;
+        private Animation _scaleAnim;
 
         public AttractionCard(string name, string description, string photoUrl,
             double? rating, int index)
@@ -99,18 +100,23 @@ namespace TravelAgent.Components
             FocusLost += OnFocusLost;
         }
 
+        private void AnimateScale(Vector3 target)
+        {
+            _scaleAnim?.Stop();
+            _scaleAnim?.Dispose();
+            _scaleAnim = new Animation(100);
+            _scaleAnim.AnimateTo(this, "Scale", target);
+            _scaleAnim.Play();
+        }
+
         private void OnFocusGained(object sender, EventArgs e)
         {
-            var anim = new Animation(200);
-            anim.AnimateTo(this, "Scale", new Vector3(1.08f, 1.08f, 1f));
-            anim.Play();
+            AnimateScale(new Vector3(1.08f, 1.08f, 1f));
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
-            var anim = new Animation(200);
-            anim.AnimateTo(this, "Scale", new Vector3(1f, 1f, 1f));
-            anim.Play();
+            AnimateScale(new Vector3(1f, 1f, 1f));
         }
     }
 }

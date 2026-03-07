@@ -7,13 +7,14 @@ namespace TravelAgent.Components
     public class ActivityCard : View
     {
         private readonly View _cardView;
+        private Animation _scaleAnim;
 
         public ActivityCard(string time, string activity, string location,
             string photoUrl, float cardWidth = 340f)
         {
             Focusable = true;
             bool hasPhoto = !string.IsNullOrEmpty(photoUrl);
-            float cardHeight = hasPhoto ? 170f : 85f;
+            float cardHeight = hasPhoto ? 220f : 85f;
             Size = new Size(cardWidth, cardHeight);
 
             _cardView = new View
@@ -35,10 +36,10 @@ namespace TravelAgent.Components
             {
                 var img = new ImageView
                 {
-                    Size = new Size(cardWidth, 70),
+                    Size = new Size(cardWidth, 120),
                     ResourceUrl = photoUrl,
                     DesiredWidth = (int)cardWidth,
-                    DesiredHeight = 70,
+                    DesiredHeight = 120,
                 };
                 _cardView.Add(img);
             }
@@ -99,18 +100,23 @@ namespace TravelAgent.Components
             FocusLost += OnFocusLost;
         }
 
+        private void AnimateScale(Vector3 target)
+        {
+            _scaleAnim?.Stop();
+            _scaleAnim?.Dispose();
+            _scaleAnim = new Animation(100);
+            _scaleAnim.AnimateTo(this, "Scale", target);
+            _scaleAnim.Play();
+        }
+
         private void OnFocusGained(object sender, EventArgs e)
         {
-            var anim = new Animation(200);
-            anim.AnimateTo(this, "Scale", new Vector3(1.05f, 1.05f, 1f));
-            anim.Play();
+            AnimateScale(new Vector3(1.05f, 1.05f, 1f));
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
-            var anim = new Animation(200);
-            anim.AnimateTo(this, "Scale", new Vector3(1f, 1f, 1f));
-            anim.Play();
+            AnimateScale(new Vector3(1f, 1f, 1f));
         }
     }
 }
