@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns="http://tizen.org/ns/packages" api-version="6" package="com.travelagent.nui" version="1.0.0">
+  <profile name="tv" />
+  <ui-application appid="com.travelagent.nui" exec="TravelAgent.dll" type="dotnet-nui"
+                  multiple="false" taskmanage="true" launch_mode="single">
+    <label>Travel Agent</label>
+    <icon>res/icon.png</icon>
+  </ui-application>
+  <privileges>
+    <privilege>http://tizen.org/privilege/internet</privilege>
+    <privilege>http://tizen.org/privilege/network.get</privilege>
+  </privileges>
+  <feature name="http://tizen.org/feature/screen.size.all" />
+</manifest>
