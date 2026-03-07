@@ -1,0 +1,10 @@
+name = "toss-payment-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+TOSS_CLIENT_KEY = "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq"
+SKIP_TOSS_PAYMENT = "true"
+
+# TOSS_SECRET_KEY should be set via: npx wrangler secret put TOSS_SECRET_KEY
+# For test mode (SKIP_TOSS_PAYMENT=true), it's not required.
