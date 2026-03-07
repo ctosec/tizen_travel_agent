@@ -26,10 +26,10 @@ export class Booking {
   @Column({ nullable: true })
   amadeusOrderId: string;
 
-  @Column('jsonb')
+  @Column('simple-json')
   bookingData: Record<string, unknown>;
 
-  @Column('decimal', { precision: 12, scale: 2, nullable: true })
+  @Column({ type: 'real', nullable: true })
   paymentAmount: number;
 
   @Column({ nullable: true })

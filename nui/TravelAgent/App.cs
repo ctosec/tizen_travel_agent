@@ -21,6 +21,9 @@ namespace TravelAgent
             win.BackgroundColor = Utils.AppColors.Slate900;
             win.KeyEvent += OnKeyEvent;
 
+            FocusManager.Instance.EnableDefaultAlgorithm(true);
+            FocusManager.Instance.FocusIndicator = new View { Opacity = 0 };
+
             _rootView = new View
             {
                 Size = new Size(1920, 1080),

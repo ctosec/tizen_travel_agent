@@ -339,11 +339,15 @@ namespace TravelAgent.Pages
             // Focus first flight
             if (_flightList.ChildCount > 0)
             {
-                Timer.DelayCall(300, () =>
+                var focusTimer = new Timer(300);
+                focusTimer.Tick += (s, e) =>
                 {
                     FocusManager.Instance.SetCurrentFocusView(_flightList.GetChildAt(0));
+                    focusTimer.Stop();
+                    focusTimer.Dispose();
                     return false;
-                });
+                };
+                focusTimer.Start();
             }
         }
 
@@ -453,10 +457,11 @@ namespace TravelAgent.Pages
                 {
                     _orderId = session.OrderId;
                     _paymentStatus = "PENDING";
+                    var externalUrl = await PaymentService.GetExternalBaseUrl();
                     string checkoutUrl = PaymentService.GetCheckoutUrl(
                         _orderId, totalAmount,
                         $"{_app.City} \uc5ec\ud589 \ud328\ud0a4\uc9c0",
-                        _paymentMethod);
+                        _paymentMethod, externalUrl);
 
                     ShowQRCode(checkoutUrl, totalAmount);
                     StartPolling();
@@ -478,29 +483,20 @@ namespace TravelAgent.Pages
                 c.Dispose();
             }
 
-            // QR code placeholder (NUI doesn't have built-in QR generation)
-            // In production, use a QR library or generate server-side
-            var qrBg = new View
+            // Generate QR code using public API
+            var encodedUrl = Uri.EscapeDataString(url);
+            var qrImageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={encodedUrl}";
+            var qrImage = new ImageView
             {
                 Size = new Size(200, 200),
-                CornerRadius = 24f,
+                CornerRadius = 12f,
+                ResourceUrl = qrImageUrl,
+                DesiredWidth = 200,
+                DesiredHeight = 200,
                 BackgroundColor = AppColors.White,
-                Layout = new LinearLayout
-                {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                }
+                ClippingMode = ClippingModeType.ClipToBoundingBox,
             };
-            var qrText = new TextLabel
-            {
-                Text = "QR",
-                TextColor = AppColors.Slate900,
-                PointSize = 40f,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            qrBg.Add(qrText);
-            _qrContainer.Add(qrBg);
+            _qrContainer.Add(qrImage);
 
             _qrContainer.Add(new TextLabel
             {
@@ -525,30 +521,33 @@ namespace TravelAgent.Pages
         {
             StopPolling();
             _pollTimer = new Timer(2000);
-            _pollTimer.Tick += async (s, e) =>
+            _pollTimer.Tick += (s, e) =>
             {
-                try
-                {
-                    var status = await PaymentService.GetStatus(_orderId);
-                    if (status?.Status == "SUCCESS")
-                    {
-                        _paymentStatus = "SUCCESS";
-                        ShowSuccess();
-                        StopPolling();
-                        return false;
-                    }
-                    if (status?.Status == "FAIL" || status?.Status == "EXPIRED")
-                    {
-                        _paymentStatus = "FAIL";
-                        ShowFailure();
-                        StopPolling();
-                        return false;
-                    }
-                }
-                catch { }
+                _ = PollStatusAsync();
                 return true;
             };
             _pollTimer.Start();
+        }
+
+        private async Task PollStatusAsync()
+        {
+            try
+            {
+                var status = await PaymentService.GetStatus(_orderId);
+                if (status?.Status == "SUCCESS")
+                {
+                    _paymentStatus = "SUCCESS";
+                    ShowSuccess();
+                    StopPolling();
+                }
+                else if (status?.Status == "FAIL" || status?.Status == "EXPIRED")
+                {
+                    _paymentStatus = "FAIL";
+                    ShowFailure();
+                    StopPolling();
+                }
+            }
+            catch { }
         }
 
         private void StopPolling()

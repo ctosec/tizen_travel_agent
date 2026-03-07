@@ -21,6 +21,7 @@ namespace TravelAgent.Components
             _selected = selected;
             Focusable = true;
             Size = new Size(width, 120);
+            CornerRadius = 16f;
 
             var itin = flight.Itineraries?.FirstOrDefault();
             var segments = itin?.Segments ?? new();
@@ -224,13 +225,14 @@ namespace TravelAgent.Components
 
         private void OnFocusGained(object sender, EventArgs e)
         {
-            _cardView.BorderlineColor = AppColors.Blue400;
-            _cardView.BorderlineWidth = 2f;
+            BorderlineColor = AppColors.Blue400;
+            BorderlineWidth = 3f;
+            BorderlineOffset = -1f;
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
-            _cardView.BorderlineColor = _selected ? AppColors.Blue500 : AppColors.White10;
+            BorderlineWidth = 0f;
         }
 
         private bool OnKeyEvent(object sender, KeyEventArgs e)

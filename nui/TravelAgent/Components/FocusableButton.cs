@@ -98,20 +98,15 @@ namespace TravelAgent.Components
         {
             if (_disabled) return;
             _isFocused = true;
-            _inner.BorderlineWidth = 4f;
+            _inner.BorderlineWidth = 3f;
             _inner.BorderlineColor = _focusBorderColor;
-            var anim = new Animation(200);
-            anim.AnimateTo(_inner, "Scale", new Vector3(1.05f, 1.05f, 1f));
-            anim.Play();
+            _inner.BorderlineOffset = 1f;
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
             _isFocused = false;
             _inner.BorderlineWidth = 0f;
-            var anim = new Animation(200);
-            anim.AnimateTo(_inner, "Scale", new Vector3(1f, 1f, 1f));
-            anim.Play();
         }
 
         private bool OnKeyEvent(object sender, KeyEventArgs e)

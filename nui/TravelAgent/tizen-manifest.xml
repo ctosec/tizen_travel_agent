@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns="http://tizen.org/ns/packages" api-version="6" package="com.travelagent.nui" version="1.0.0">
   <profile name="tv" />
-  <ui-application appid="com.travelagent.nui" exec="TravelAgent.dll" type="dotnet-nui"
+  <ui-application appid="com.travelagent.nui" exec="TravelAgent.dll" type="dotnet"
                   multiple="false" taskmanage="true" launch_mode="single">
     <label>Travel Agent</label>
-    <icon>res/icon.png</icon>
+    <icon>shared/res/icon.png</icon>
   </ui-application>
   <privileges>
     <privilege>http://tizen.org/privilege/internet</privilege>

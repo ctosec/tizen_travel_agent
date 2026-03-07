@@ -21,6 +21,7 @@ namespace TravelAgent.Components
             _selected = selected;
             Focusable = true;
             Size = new Size(width, 130);
+            CornerRadius = 16f;
 
             var offer = hotel.Offers?.FirstOrDefault();
             string hotelName = hotel.Hotel?.Name ?? "Hotel";
@@ -170,13 +171,14 @@ namespace TravelAgent.Components
 
         private void OnFocusGained(object sender, EventArgs e)
         {
-            _cardView.BorderlineColor = AppColors.Emerald400;
-            _cardView.BorderlineWidth = 2f;
+            BorderlineColor = AppColors.Emerald400;
+            BorderlineWidth = 3f;
+            BorderlineOffset = -1f;
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
-            _cardView.BorderlineColor = _selected ? AppColors.Emerald500 : AppColors.White10;
+            BorderlineWidth = 0f;
         }
 
         private bool OnKeyEvent(object sender, KeyEventArgs e)

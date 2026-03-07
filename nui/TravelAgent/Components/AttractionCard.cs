@@ -101,19 +101,15 @@ namespace TravelAgent.Components
 
         private void OnFocusGained(object sender, EventArgs e)
         {
-            _cardView.BorderlineWidth = 4f;
-            _cardView.BorderlineColor = Utils.AppColors.Blue500;
-            var anim = new Animation(300);
-            anim.AnimateTo(_cardView, "Scale", new Vector3(1.1f, 1.1f, 1f));
+            var anim = new Animation(200);
+            anim.AnimateTo(this, "Scale", new Vector3(1.08f, 1.08f, 1f));
             anim.Play();
-            RaiseToTop();
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
-            _cardView.BorderlineWidth = 0f;
-            var anim = new Animation(300);
-            anim.AnimateTo(_cardView, "Scale", new Vector3(1f, 1f, 1f));
+            var anim = new Animation(200);
+            anim.AnimateTo(this, "Scale", new Vector3(1f, 1f, 1f));
             anim.Play();
         }
     }

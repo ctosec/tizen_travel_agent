@@ -13,7 +13,7 @@ namespace TravelAgent.Components
         {
             Focusable = true;
             bool hasPhoto = !string.IsNullOrEmpty(photoUrl);
-            float cardHeight = hasPhoto ? 200f : 100f;
+            float cardHeight = hasPhoto ? 170f : 85f;
             Size = new Size(cardWidth, cardHeight);
 
             _cardView = new View
@@ -35,10 +35,10 @@ namespace TravelAgent.Components
             {
                 var img = new ImageView
                 {
-                    Size = new Size(cardWidth, 96),
+                    Size = new Size(cardWidth, 70),
                     ResourceUrl = photoUrl,
                     DesiredWidth = (int)cardWidth,
-                    DesiredHeight = 96,
+                    DesiredHeight = 70,
                 };
                 _cardView.Add(img);
             }
@@ -101,19 +101,15 @@ namespace TravelAgent.Components
 
         private void OnFocusGained(object sender, EventArgs e)
         {
-            _cardView.BorderlineWidth = 2f;
-            _cardView.BorderlineColor = Utils.AppColors.Purple400;
             var anim = new Animation(200);
-            anim.AnimateTo(_cardView, "Scale", new Vector3(1.05f, 1.05f, 1f));
+            anim.AnimateTo(this, "Scale", new Vector3(1.05f, 1.05f, 1f));
             anim.Play();
         }
 
         private void OnFocusLost(object sender, EventArgs e)
         {
-            _cardView.BorderlineWidth = 1f;
-            _cardView.BorderlineColor = Utils.AppColors.White10;
             var anim = new Animation(200);
-            anim.AnimateTo(_cardView, "Scale", new Vector3(1f, 1f, 1f));
+            anim.AnimateTo(this, "Scale", new Vector3(1f, 1f, 1f));
             anim.Play();
         }
     }

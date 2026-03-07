@@ -9,3 +9,25 @@ backend/.env
 *.log
 .DS_Store
 Thumbs.db
+
+# NUI build artifacts
+nui/**/bin/
+nui/**/obj/
+*.csproj.user
+
+# Backend SQLite database
+backend/travel_agent.db
+
+# Test scripts and screenshots
+*.tar
+frontend/capture.ps1
+frontend/click_and_key.ps1
+frontend/sendkeys.ps1
+frontend/focus_emu.ps1
+frontend/test_*.mjs
+frontend/emulator_*.png
+frontend-only/capture_tv.ps1
+frontend-only/emu_click_key.ps1
+frontend-only/send_keys.ps1
+frontend-only/emu_*.png
+backend/test_*.mjs

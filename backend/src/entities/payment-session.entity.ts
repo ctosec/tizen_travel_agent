@@ -26,7 +26,7 @@ export class PaymentSession {
   @Column()
   bookingType: string; // flight | hotel
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: 'simple-json', nullable: true })
   bookingData: Record<string, unknown>;
 
   @Column({ nullable: true })
@@ -35,7 +35,7 @@ export class PaymentSession {
   @Column({ nullable: true })
   paymentKey: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: 'simple-json', nullable: true })
   resultData: Record<string, unknown>;
 
   @CreateDateColumn()
@@ -44,6 +44,6 @@ export class PaymentSession {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'datetime' })
   expiresAt: Date;
 }

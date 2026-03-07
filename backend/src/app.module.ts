@@ -22,16 +22,27 @@ import { PaymentSession } from './entities/payment-session.entity.js';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres' as const,
-        host: configService.get<string>('DATABASE_HOST', 'localhost'),
-        port: configService.get<number>('DATABASE_PORT', 5432),
-        username: configService.get<string>('DATABASE_USER', 'postgres'),
-        password: configService.get<string>('DATABASE_PASSWORD', ''),
-        database: configService.get<string>('DATABASE_NAME', 'travel_agent_v2'),
-        entities: [Booking, PaymentSession],
-        synchronize: true,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const dbType = configService.get<string>('DATABASE_TYPE', 'better-sqlite3');
+        if (dbType === 'postgres') {
+          return {
+            type: 'postgres' as const,
+            host: configService.get<string>('DATABASE_HOST', 'localhost'),
+            port: configService.get<number>('DATABASE_PORT', 5432),
+            username: configService.get<string>('DATABASE_USER', 'postgres'),
+            password: configService.get<string>('DATABASE_PASSWORD', ''),
+            database: configService.get<string>('DATABASE_NAME', 'travel_agent_v2'),
+            entities: [Booking, PaymentSession],
+            synchronize: true,
+          };
+        }
+        return {
+          type: 'better-sqlite3' as const,
+          database: configService.get<string>('DATABASE_PATH', 'travel_agent.db'),
+          entities: [Booking, PaymentSession],
+          synchronize: true,
+        };
+      },
     }),
     AmadeusModule,
     FlightsModule,

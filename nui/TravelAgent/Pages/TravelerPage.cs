@@ -197,11 +197,15 @@ namespace TravelAgent.Pages
             RestoreData();
 
             // Focus first input
-            Timer.DelayCall(200, () =>
+            var focusTimer = new Timer(200);
+            focusTimer.Tick += (s, e) =>
             {
                 FocusManager.Instance.SetCurrentFocusView(_lastNameInput);
+                focusTimer.Stop();
+                focusTimer.Dispose();
                 return false;
-            });
+            };
+            focusTimer.Start();
         }
 
         private FocusableInput CreateInput(string label, string placeholder, float width, int maxLength = 100)

@@ -288,7 +288,7 @@ namespace TravelAgent.Pages
                     Duration = _duration,
                     StartDate = _startDate.ToString("yyyy-MM-dd")
                 };
-                _days = await ItineraryService.Instance.GenerateItinerary(input);
+                _days = await ItineraryService.GenerateItinerary(input);
                 ShowDays();
             }
             catch (Exception)
@@ -347,7 +347,8 @@ namespace TravelAgent.Pages
             // Focus first activity
             if (_carouselInner.ChildCount > 0)
             {
-                Timer.DelayCall(200, () =>
+                var focusTimer = new Timer(200);
+                focusTimer.Tick += (s, e) =>
                 {
                     var firstCol = _carouselInner.GetChildAt(0);
                     if (firstCol.ChildCount > 1)
@@ -358,8 +359,11 @@ namespace TravelAgent.Pages
                             FocusManager.Instance.SetCurrentFocusView(actContainer.GetChildAt(0));
                         }
                     }
+                    focusTimer.Stop();
+                    focusTimer.Dispose();
                     return false;
-                });
+                };
+                focusTimer.Start();
             }
         }
 

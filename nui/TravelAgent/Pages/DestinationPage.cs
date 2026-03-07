@@ -121,7 +121,7 @@ namespace TravelAgent.Pages
         {
             try
             {
-                var data = await DestinationService.Instance.GetDestination(_app.Country, _app.City);
+                var data = await DestinationService.GetDestination(_app.Country, _app.City);
                 ShowAttractions(data.Attractions);
             }
             catch (Exception)
@@ -166,11 +166,15 @@ namespace TravelAgent.Pages
             // Focus first card
             if (_cards.Count > 0)
             {
-                Timer.DelayCall(200, () =>
+                var timer = new Timer(200);
+                timer.Tick += (s, e) =>
                 {
                     FocusManager.Instance.SetCurrentFocusView(_cards[0]);
+                    timer.Stop();
+                    timer.Dispose();
                     return false;
-                });
+                };
+                timer.Start();
             }
         }
     }

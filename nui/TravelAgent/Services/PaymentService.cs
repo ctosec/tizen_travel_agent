@@ -11,12 +11,32 @@ namespace TravelAgent.Services
     public static class PaymentService
     {
         private static readonly HttpClient _client = new HttpClient();
+        private static string _externalBaseUrl;
 
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
+
+        /// <summary>
+        /// Fetches the server's externally accessible base URL (LAN IP) for QR codes.
+        /// </summary>
+        public static async Task<string> GetExternalBaseUrl()
+        {
+            if (_externalBaseUrl != null) return _externalBaseUrl;
+            try
+            {
+                var response = await _client.GetStringAsync($"{ApiConfig.PaymentUrl}/api/server-info");
+                using var doc = JsonDocument.Parse(response);
+                _externalBaseUrl = doc.RootElement.GetProperty("baseUrl").GetString();
+            }
+            catch
+            {
+                _externalBaseUrl = ApiConfig.PaymentUrl;
+            }
+            return _externalBaseUrl;
+        }
 
         /// <summary>
         /// Creates a new payment session on the payment server.
@@ -26,7 +46,7 @@ namespace TravelAgent.Services
         {
             try
             {
-                var url = $"{ApiConfig.PaymentUrl}/api/sessions";
+                var url = $"{ApiConfig.PaymentUrl}/api/payments/sessions";
 
                 var requestBody = new
                 {
@@ -60,7 +80,7 @@ namespace TravelAgent.Services
         {
             try
             {
-                var url = $"{ApiConfig.PaymentUrl}/api/sessions/{orderId}/status";
+                var url = $"{ApiConfig.PaymentUrl}/api/payments/sessions/{orderId}/status";
 
                 var response = await _client.GetAsync(url);
                 response.EnsureSuccessStatusCode();
@@ -79,11 +99,12 @@ namespace TravelAgent.Services
         /// <summary>
         /// Returns the checkout page URL for QR code display.
         /// </summary>
-        public static string GetCheckoutUrl(string orderId, int amount, string orderName, string method)
+        public static string GetCheckoutUrl(string orderId, int amount, string orderName, string method, string baseUrl = null)
         {
+            var url = baseUrl ?? ApiConfig.PaymentUrl;
             var encodedOrderName = Uri.EscapeDataString(orderName);
             var encodedMethod = Uri.EscapeDataString(method);
-            return $"{ApiConfig.PaymentUrl}/checkout?orderId={orderId}&amount={amount}&orderName={encodedOrderName}&method={encodedMethod}";
+            return $"{url}/api/payments/checkout?orderId={orderId}&amount={amount}&orderName={encodedOrderName}&method={encodedMethod}";
         }
     }
 }

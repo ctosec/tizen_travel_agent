@@ -41,9 +41,9 @@
   │  └──────────────┬────────────────────────────────────────────┘  │
   │                 │                                                │
   │  ┌──────────────▼────────────────────────────────────────────┐  │
-  │  │              PostgreSQL 16                                 │  │
+  │  │              Database (PostgreSQL 16 or SQLite)             │  │
   │  │  Tables: bookings, payment_sessions                       │  │
-  │  │  Port: 5432                                               │  │
+  │  │  Default: SQLite (zero-config) | Optional: PostgreSQL     │  │
   │  └───────────────────────────────────────────────────────────┘  │
   └─────────────────────────────────────────────────────────────────┘
 
@@ -55,6 +55,8 @@
     tizen_travel_agent/
     ├── backend/             NestJS API server
     ├── frontend/            React SPA (Tizen Web App)
+    ├── nui/                 Tizen .NET NUI App (C#)
+    ├── frontend-only/       Frontend-only version (no backend)
     ├── cloudflare-worker/   Gemini API proxy (Cloudflare Worker)
     └── docker-compose.yml   PostgreSQL container
 
@@ -64,8 +66,8 @@
 
   Prerequisites:
     - Node.js 20+ (LTS recommended)
-    - Docker & Docker Compose (for PostgreSQL)
     - Git
+    - Docker & Docker Compose (only if using PostgreSQL; SQLite is default)
 
   2.1  Clone the repository
   ─────────────────────────
@@ -476,7 +478,7 @@
   6.1  Prerequisites
   ──────────────────
     - Node.js 20+
-    - PostgreSQL 16 running locally (or via Docker: docker compose up -d)
+    - PostgreSQL 16 running locally, or SQLite (zero-config, see 6.2)
     - Tizen Studio with TV Extensions (for emulator testing)
 
   6.2  Start backend
@@ -486,11 +488,6 @@
 
     # Create .env (copy from example or create manually)
     cat > .env << 'EOF'
-    DATABASE_HOST=localhost
-    DATABASE_PORT=5432
-    DATABASE_USER=postgres
-    DATABASE_PASSWORD=travelagent123
-    DATABASE_NAME=travel_agent_v2
     AMADEUS_CLIENT_ID=<your_key>
     AMADEUS_CLIENT_SECRET=<your_secret>
     AMADEUS_HOSTNAME=test
@@ -500,6 +497,15 @@
     TOSS_SECRET_KEY=test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R
     SKIP_TOSS_PAYMENT=true
     EOF
+
+    # Database: SQLite by default (zero-config, no Docker needed).
+    # For PostgreSQL, add these to .env:
+    #   DATABASE_TYPE=postgres
+    #   DATABASE_HOST=localhost
+    #   DATABASE_PORT=5432
+    #   DATABASE_USER=postgres
+    #   DATABASE_PASSWORD=travelagent123
+    #   DATABASE_NAME=travel_agent_v2
 
     # No GEMINI_BASE_URL needed for local dev (direct API access)
 
@@ -546,7 +552,7 @@
     │ GEMINI_BASE_URL      │ (not needed)           │ CF Worker proxy URL     │
     │ VITE_API_URL         │ http://localhost:3000  │ https://your-domain.com │
     │ .env.tizen API URL   │ http://10.0.2.2:3000  │ https://your-domain.com │
-    │ Database             │ Local PostgreSQL       │ Docker / managed DB     │
+    │ Database             │ SQLite (zero-config)   │ PostgreSQL / managed DB │
     │ SKIP_TOSS_PAYMENT    │ true                   │ false                   │
     │ Certificate profile  │ tv-samsung / develop   │ tv-samsung              │
     └──────────────────────┴───────────────────────┴─────────────────────────┘
@@ -569,5 +575,196 @@
     If itinerary returns activities like "콜로세움 관람" instead of
     "도시 중심부 관광", Gemini AI is working correctly.
     If it returns generic fallback activities, check GEMINI_API_KEY.
+
+
+7. NUI APP (.NET C#) - BUILD & INSTALL & RUN
+================================================================================
+
+  The NUI version is a native Tizen .NET app (C#) that provides the same
+  travel agent experience using Samsung NUI (Natural UI) framework instead
+  of a web-based approach. It connects to the same NestJS backend.
+
+  7.1  Architecture
+  ─────────────────
+    ┌─────────────────────────────────────────────────────┐
+    │           Samsung TV (Tizen 6.0+, .NET)             │
+    │                                                      │
+    │  ┌─────────────────────────────────────────────┐    │
+    │  │        NUI App (TravelAgent.dll)             │    │
+    │  │                                              │    │
+    │  │  Tizen.NET 10.0 + NUI (Natural UI)           │    │
+    │  │  C# 9 / .NET                                 │    │
+    │  │  HTTP: System.Net.Http.HttpClient             │    │
+    │  │  AI:   Google Gemini API (via HttpClient)     │    │
+    │  │  JSON: System.Text.Json                       │    │
+    │  │                                              │    │
+    │  │  Pages:                                       │    │
+    │  │    DestinationPage → AttractionCard[5]        │    │
+    │  │    ItineraryPage   → ActivityCard[N]          │    │
+    │  │    TravelerPage    → FocusableInput fields    │    │
+    │  │    BookingPage     → FlightCard + HotelCard   │    │
+    │  │                      + QR Payment             │    │
+    │  └──────────────┬──────────────────────────┘    │
+    │                 │ REST API (HTTP)                 │
+    └─────────────────┼────────────────────────────────┘
+                      │
+    ┌─────────────────▼────────────────────────────────┐
+    │              backend (NestJS 11)                   │
+    │  Same backend as web version (Section 2)           │
+    │  SQLite (default) or PostgreSQL                    │
+    └───────────────────────────────────────────────────┘
+
+  Project Structure:
+    nui/TravelAgent/
+    ├── App.cs                  Main app & page navigation
+    ├── Program.cs              Entry point
+    ├── TravelAgent.csproj      .NET project file
+    ├── tizen-manifest.xml      Tizen app manifest
+    ├── Components/
+    │   ├── AttractionCard.cs   Destination attraction card
+    │   ├── ActivityCard.cs     Itinerary activity card
+    │   ├── FlightCard.cs       Flight search result card
+    │   ├── HotelCard.cs        Hotel search result card
+    │   ├── FocusableButton.cs  TV remote-friendly button
+    │   ├── FocusableInput.cs   TV remote text input
+    │   ├── GradientBackground.cs  Gradient fill view
+    │   └── LoadingSpinner.cs   Loading indicator
+    ├── Pages/
+    │   ├── DestinationPage.cs  City info & top attractions
+    │   ├── ItineraryPage.cs    AI-generated travel schedule
+    │   ├── TravelerPage.cs     Traveler info form
+    │   └── BookingPage.cs      Flight/hotel booking & payment
+    ├── Services/
+    │   ├── ApiConfig.cs        API keys & base URLs
+    │   ├── GeminiService.cs    Google Gemini AI client
+    │   ├── PlacesService.cs    Google Places API client
+    │   ├── DestinationService.cs  Destination data orchestrator
+    │   ├── ItineraryService.cs    AI itinerary generator
+    │   ├── MockFlightService.cs   Mock flight data
+    │   ├── MockHotelService.cs    Mock hotel data
+    │   └── PaymentService.cs   Payment session & QR support
+    ├── Models/                 Data models (Destination, Itinerary, Booking)
+    ├── Utils/                  AirportCodes, AppColors, Currency
+    └── shared/res/icon.png     App icon
+
+  7.2  Prerequisites
+  ──────────────────
+    - Visual Studio 2022+ with Tizen .NET workload
+      OR Visual Studio Code with Tizen .NET extension
+    - Tizen Studio with TV Extensions (for emulator)
+    - .NET SDK (installed with Tizen SDK tools)
+    - Backend server running (Section 2 or Section 6)
+
+  7.3  Build
+  ──────────
+    Using Visual Studio:
+      1. Open nui/TravelAgent/TravelAgent.csproj
+      2. Set build configuration to Debug or Release
+      3. Build > Build Solution (Ctrl+Shift+B)
+
+    Using CLI:
+      cd nui/TravelAgent
+      dotnet build
+
+  7.4  Run on Emulator
+  ─────────────────────
+    1. Launch Tizen TV Emulator (same as Section 3.5)
+    2. Deploy from Visual Studio:
+       Debug > Start Debugging (F5)
+       - Select target: emulator-26101
+
+    Or via CLI:
+      dotnet build
+      sdb install -n bin/Debug/tizen10.0/com.travelagent.nui-1.0.0.tpk
+      sdb shell app_launcher -s com.travelagent.nui
+
+  7.5  Run on Physical TV
+  ────────────────────────
+    1. Build in Release mode
+    2. Copy the .tpk to USB drive:
+       cp bin/Release/tizen10.0/com.travelagent.nui-1.0.0.tpk /path/to/usb/
+    3. Install via serial console:
+       pkgcmd -i -t tpk -p /opt/storage/usb/sda1/com.travelagent.nui-1.0.0.tpk
+    4. Launch:
+       app_launcher -s com.travelagent.nui
+
+  7.6  Focus Navigation
+  ──────────────────────
+    The NUI app uses D-pad (arrow keys + Enter) navigation with custom
+    focus indicators per component type:
+
+    - AttractionCard, ActivityCard: Scale-up animation (1.05x~1.08x)
+      on focus, similar to the web app hover effect
+    - FlightCard, HotelCard: Colored borderline (Blue/Emerald)
+    - FocusableButton: Inner borderline highlight
+    - FocusableInput: Border color change on focus
+    - NUI default blue focus rectangle: Disabled via transparent
+      FocusManager.FocusIndicator
+
+  7.7  QR Payment (Emulator)
+  ──────────────────────────
+    The NUI app generates QR codes for mobile payment:
+
+    1. App calls GET /api/server-info to get the backend's LAN IP
+    2. Builds checkout URL: http://<LAN_IP>:3000/api/payments/checkout?...
+    3. Generates QR image via api.qrserver.com
+    4. Phone scans QR -> opens checkout -> completes payment
+    5. App polls payment status until SUCCESS
+
+    For emulator: ApiConfig.PaymentUrl defaults to http://10.0.2.2:3000
+    (QEMU NAT gateway to host machine).
+
+  7.8  Configuration
+  ──────────────────
+    API keys and URLs are configured in Services/ApiConfig.cs.
+    Override via environment variables:
+
+      GEMINI_API_KEY          Google Gemini API key
+      GEMINI_BASE_URL         Gemini API base URL (optional proxy)
+      GOOGLE_PLACES_API_KEY   Google Places API key
+      PAYMENT_URL             Backend payment server URL
+
+  7.9  Key Differences from Web Version
+  ──────────────────────────────────────
+    ┌──────────────────────┬──────────────────────┬─────────────────────┐
+    │                      │ Web (React/.wgt)     │ NUI (.NET/.tpk)     │
+    ├──────────────────────┼──────────────────────┼─────────────────────┤
+    │ Language             │ TypeScript/React     │ C# 9 / .NET         │
+    │ Package format       │ .wgt (Web Widget)    │ .tpk (Tizen Package)│
+    │ UI framework         │ HTML/CSS/JS          │ NUI (Native UI)     │
+    │ Navigation lib       │ norigin-spatial-nav  │ NUI FocusManager    │
+    │ State management     │ Zustand              │ Class fields        │
+    │ Real-time updates    │ WebSocket            │ HTTP polling        │
+    │ Build tool           │ Vite                 │ dotnet build        │
+    │ Min Tizen version    │ 4.0                  │ 6.0                 │
+    └──────────────────────┴──────────────────────┴─────────────────────┘
+
+
+8. BACKEND - SQLITE MODE (NO DOCKER)
+================================================================================
+
+  The backend supports SQLite as a zero-config alternative to PostgreSQL.
+  This is the default mode — no Docker or database setup needed.
+
+  8.1  How it works
+  ─────────────────
+    By default (no DATABASE_TYPE env var), the backend uses better-sqlite3.
+    Data is stored in backend/travel_agent.db (auto-created on first run).
+
+    To use PostgreSQL instead, set DATABASE_TYPE=postgres in .env along
+    with the PostgreSQL connection parameters (see Section 2.4).
+
+  8.2  Entity type mappings
+  ─────────────────────────
+    SQLite doesn't support some PostgreSQL types. The entities use
+    compatible types that work with both databases:
+
+    ┌──────────────────┬──────────────────┬──────────────────┐
+    │ Field type       │ PostgreSQL       │ SQLite           │
+    ├──────────────────┼──────────────────┼──────────────────┤
+    │ JSON data        │ jsonb            │ simple-json      │
+    │ Timestamps       │ timestamp        │ datetime         │
+    │ Decimal numbers  │ decimal          │ real             │
+    └──────────────────┴──────────────────┴──────────────────┘
 
 ================================================================================
