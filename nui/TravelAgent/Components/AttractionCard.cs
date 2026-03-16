@@ -9,7 +9,6 @@ namespace TravelAgent.Components
         private readonly View _cardView;
         private readonly ImageView _imageView;
         private readonly TextLabel _nameLabel;
-        private readonly TextLabel _ratingLabel;
         private readonly TextLabel _descLabel;
         private Animation _scaleAnim;
 
@@ -67,19 +66,6 @@ namespace TravelAgent.Components
                 Size = new Size(280, 28),
             };
             content.Add(_nameLabel);
-
-            if (rating.HasValue)
-            {
-                _ratingLabel = new TextLabel
-                {
-                    Text = $"\u2b50 {rating:F1}",
-                    TextColor = Utils.AppColors.Amber500,
-                    PointSize = 14f,
-                    FontFamily = "SamsungOneUI",
-                    Size = new Size(280, 20),
-                };
-                content.Add(_ratingLabel);
-            }
 
             _descLabel = new TextLabel
             {

@@ -5,8 +5,8 @@ namespace TravelAgent.Components
 {
     public class LoadingSpinner : View
     {
-        private readonly View _spinner;
-        private Animation _spinAnimation;
+        private readonly View[] _dots = new View[3];
+        private Animation _animation;
 
         public LoadingSpinner(string text = "\ub85c\ub529\uc911...", float size = 48f)
         {
@@ -19,25 +19,33 @@ namespace TravelAgent.Components
                 CellPadding = new Size2D(0, 20)
             };
 
-            // Spinner circle
-            _spinner = new View
+            // Dots container
+            var dotsRow = new View
             {
-                Size = new Size(size, size),
-                CornerRadius = size / 2f,
-                BorderlineWidth = 4f,
-                BorderlineColor = Utils.AppColors.White10,
-                BackgroundColor = Utils.AppColors.Transparent,
+                Size = new Size(size * 2, size / 2),
+                Layout = new LinearLayout
+                {
+                    LinearOrientation = LinearLayout.Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    CellPadding = new Size2D(12, 0)
+                }
             };
 
-            // Blue top arc (simulated with a partial border - using a visual)
-            var arcMap = new PropertyMap();
-            arcMap.Insert(Visual.Property.Type, new PropertyValue((int)Visual.Type.Border));
-            arcMap.Insert(BorderVisualProperty.Color, new PropertyValue(Utils.AppColors.Blue400));
-            arcMap.Insert(BorderVisualProperty.Size, new PropertyValue(4f));
-            arcMap.Insert(Visual.Property.CornerRadius, new PropertyValue(size / 2f));
-            _spinner.Background = arcMap;
+            float dotSize = size / 4f;
+            for (int i = 0; i < 3; i++)
+            {
+                _dots[i] = new View
+                {
+                    Size = new Size(dotSize, dotSize),
+                    CornerRadius = dotSize / 2f,
+                    BackgroundColor = Utils.AppColors.Blue400,
+                    Opacity = 0.3f,
+                };
+                dotsRow.Add(_dots[i]);
+            }
 
-            Add(_spinner);
+            Add(dotsRow);
 
             var label = new TextLabel
             {
@@ -49,21 +57,35 @@ namespace TravelAgent.Components
             };
             Add(label);
 
-            StartSpin();
+            StartAnimation();
         }
 
-        private void StartSpin()
+        private void StartAnimation()
         {
-            _spinAnimation = new Animation(1000);
-            _spinAnimation.AnimateTo(_spinner, "Orientation",
-                new Rotation(new Radian(new Degree(360)), Vector3.ZAxis));
-            _spinAnimation.Looping = true;
-            _spinAnimation.Play();
+            _animation = new Animation(1200);
+
+            for (int i = 0; i < 3; i++)
+            {
+                int offset = i * 200; // stagger each dot by 200ms
+
+                // Fade in + scale up
+                _animation.AnimateTo(_dots[i], "Opacity", 1.0f, offset, offset + 300);
+                _animation.AnimateTo(_dots[i], "ScaleX", 1.3f, offset, offset + 300);
+                _animation.AnimateTo(_dots[i], "ScaleY", 1.3f, offset, offset + 300);
+
+                // Fade out + scale down
+                _animation.AnimateTo(_dots[i], "Opacity", 0.3f, offset + 300, offset + 600);
+                _animation.AnimateTo(_dots[i], "ScaleX", 1.0f, offset + 300, offset + 600);
+                _animation.AnimateTo(_dots[i], "ScaleY", 1.0f, offset + 300, offset + 600);
+            }
+
+            _animation.Looping = true;
+            _animation.Play();
         }
 
         public void Stop()
         {
-            _spinAnimation?.Stop();
+            _animation?.Stop();
         }
     }
 }
