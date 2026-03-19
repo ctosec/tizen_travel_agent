@@ -493,8 +493,8 @@
     AMADEUS_HOSTNAME=test
     GEMINI_API_KEY=<your_gemini_key>
     GOOGLE_PLACES_API_KEY=<your_places_key>
-    TOSS_CLIENT_KEY=test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq
-    TOSS_SECRET_KEY=test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R
+    TOSS_CLIENT_KEY=
+    TOSS_SECRET_KEY=
     SKIP_TOSS_PAYMENT=true
     EOF
 
