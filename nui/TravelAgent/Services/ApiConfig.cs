@@ -8,7 +8,7 @@ namespace TravelAgent.Services
     {
         public static readonly string GeminiApiKey =
             System.Environment.GetEnvironmentVariable("GEMINI_API_KEY")
-            ?? "AIzaSyA08sr-ct50zFe9BfQTYTGku5s__ZZNTu4";
+            ?? "";  // Set GEMINI_API_KEY environment variable
 
         public static readonly string GeminiBaseUrl =
             System.Environment.GetEnvironmentVariable("GEMINI_BASE_URL")
@@ -16,7 +16,7 @@ namespace TravelAgent.Services
 
         public static readonly string GooglePlacesApiKey =
             System.Environment.GetEnvironmentVariable("GOOGLE_PLACES_API_KEY")
-            ?? "AIzaSyDIFiCtRXT7JQrYlDLQDoTc7ir1527zGJ8";
+            ?? "";  // Set GOOGLE_PLACES_API_KEY environment variable
 
         public static readonly string PaymentUrl =
             System.Environment.GetEnvironmentVariable("PAYMENT_URL")

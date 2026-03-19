@@ -14,7 +14,7 @@
 
 #### 1. Gemini API 키 만료 대응 (`ApiConfig.cs`)
 
-- **문제**: 기존 Gemini API 키(`AIzaSyDVPg...`)가 만료되어 DestinationPage 관광지 설명이 표시되지 않음 (Places API는 정상이라 이름/별점/사진은 출력되었으나 한국어 설명만 빈 문자열)
+- **문제**: 기존 Gemini API 키가 만료되어 DestinationPage 관광지 설명이 표시되지 않음 (Places API는 정상이라 이름/별점/사진은 출력되었으나 한국어 설명만 빈 문자열)
 - **진단**: `curl`로 API 직접 호출하여 `400 API_KEY_INVALID` 확인
 - **수정**: 새 Gemini API 키로 교체
 
